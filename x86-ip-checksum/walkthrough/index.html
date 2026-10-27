@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>ipcheck.asm, Line by Line</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a debugger. Annotated source on the left, a sticky "watch it run" machine-state panel on the right. */
+:root {
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --ink: #17232a;
+  --muted: #56646b;
+  --rule: #d5dddb;
+  --code-bg: #f6f8f7;
+  --accent: #b86a00;          /* the execution arrow: amber, like a debugger's current line */
+  --accent-soft: #fff0d2;
+  --changed: #0d7066;         /* values that just changed */
+  --changed-soft: #dcf2ee;
+  --mnemonic: #1f4fbf;
+  --label: #9b1b5a;
+  --string: #7a5a00;
+  --comment: #7c8b86;
+  --danger: #b42318;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101619; --surface: #172025; --ink: #e2eae7; --muted: #94a4a0; --rule: #2a373c;
+    --code-bg: #131b1f; --accent: #f0a63a; --accent-soft: #3a2a10; --changed: #5fd0c1; --changed-soft: #113430;
+    --mnemonic: #8fb2ff; --label: #f19ac4; --string: #e2c26a; --comment: #6e817c; --danger: #ff8a7a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101619; --surface: #172025; --ink: #e2eae7; --muted: #94a4a0; --rule: #2a373c;
+  --code-bg: #131b1f; --accent: #f0a63a; --accent-soft: #3a2a10; --changed: #5fd0c1; --changed-soft: #113430;
+  --mnemonic: #8fb2ff; --label: #f19ac4; --string: #e2c26a; --comment: #6e817c; --danger: #ff8a7a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 36px 64px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+p code, li code, .expl code, .now-expl code { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; }
+a { color: var(--mnemonic); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- intro ---------- */
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header.intro { display: grid; gap: 14px; max-width: 74ch; }
+header.intro h1 { font-size: clamp(32px, 5vw, 48px); font-weight: 700; letter-spacing: -0.01em; }
+header.intro h1 .file { font-family: var(--font-mono); font-weight: 600; font-size: 0.82em; color: var(--accent); }
+.lede { font-size: 18px; color: var(--muted); margin: 0; }
+.howto { margin: 0; padding-left: 20px; color: var(--ink); }
+.howto li { margin-bottom: 4px; }
+
+section.block { margin-top: 44px; }
+section.block > h2 { font-size: 24px; font-weight: 600; margin-bottom: 6px; }
+section.block > p.sub { margin: 0 0 18px; color: var(--muted); max-width: 70ch; }
+
+.ideas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.idea { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
+.idea h3 { font-size: 17px; font-weight: 600; }
+.idea p { margin: 0; font-size: 15px; }
+.idea .ex { font-family: var(--font-mono); font-size: 13px; background: var(--code-bg); border-radius: 6px; padding: 8px 10px; white-space: pre; overflow-x: auto; color: var(--ink); }
+
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.flow a { display: grid; gap: 2px; text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; min-width: 0; }
+.flow a:hover { border-color: var(--accent); }
+.flow a b { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+.flow a span { font-size: 13px; color: var(--muted); }
+.flow .arrow { align-self: center; color: var(--muted); font-family: var(--font-mono); }
+.flow .fn { border-style: dashed; }
+
+/* ---------- workspace ---------- */
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; align-items: start; margin-top: 18px; }
+.listing { min-width: 0; }
+.list-tools { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 14px; font-size: 14px; color: var(--muted); }
+.list-tools label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; color: var(--ink); }
+
+.sec { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; margin-bottom: 18px; overflow: hidden; }
+.sec-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--rule); display: grid; gap: 4px; }
+.sec-head h3 { font-size: 20px; font-weight: 600; }
+.sec-head .range { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+.sec-head p { margin: 0; color: var(--muted); font-size: 15px; max-width: 72ch; }
+.sec details > summary { cursor: pointer; padding: 10px 18px; font-size: 14px; color: var(--muted); }
+.lines { overflow-x: auto; }
+
+.row { display: grid; grid-template-columns: 52px minmax(0, 1fr); border-left: 3px solid transparent; }
+.row .gut { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: right; padding: 3px 10px 0 0; user-select: none; font-variant-numeric: tabular-nums; display: grid; align-content: start; gap: 2px; }
+.row .gut .count { font-size: 10.5px; color: var(--changed); }
+.row .src { font-family: var(--font-mono); font-size: 13.5px; white-space: pre; padding: 3px 14px 3px 0; min-width: 0; }
+.row.code { background: var(--code-bg); }
+.row.code .src { color: var(--ink); }
+.row.instr { cursor: pointer; }
+.row.instr:hover { border-left-color: var(--rule); }
+.row.cmt .src { color: var(--comment); }
+.row.blank { height: 8px; }
+.row.blank .src, .row.blank .gut { display: none; }
+.row.cur { background: var(--accent-soft); border-left-color: var(--accent); }
+.row.next .gut::after { content: "next ▸"; font-size: 10px; color: var(--accent); letter-spacing: 0.04em; }
+.expl { grid-column: 2; font-family: var(--font-body); font-size: 15px; white-space: normal; color: var(--ink); padding: 2px 16px 12px 0; max-width: 72ch; }
+.hide-expl .expl { display: none; }
+.tok-m { color: var(--mnemonic); font-weight: 500; }
+.tok-l { color: var(--label); font-weight: 600; }
+.tok-s { color: var(--string); }
+.tok-c { color: var(--comment); }
+.tok-d { color: var(--label); }
+
+/* ---------- run panel ---------- */
+.run { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px - env(safe-area-inset-top, 0px)); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.run h2 { font-size: 22px; font-weight: 600; }
+.run .hint { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+.inputs { display: grid; gap: 6px; }
+.inputs button { text-align: left; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; cursor: pointer; display: grid; gap: 1px; }
+.inputs button b { font-family: var(--font-mono); font-weight: 500; font-size: 14px; }
+.inputs button span { font-size: 12.5px; color: var(--muted); }
+.inputs button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.controls button { background: var(--surface); border: 1px solid var(--rule); border-radius: 7px; padding: 7px 11px; cursor: pointer; font-size: 14px; }
+.controls button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+.controls button:hover { border-color: var(--accent); }
+.scrub { display: grid; gap: 4px; }
+.scrub input { width: 100%; accent-color: var(--accent); }
+.scrub .stepcount { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.now { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 12px; display: grid; gap: 6px; }
+.now .now-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.now pre { margin: 0; font-family: var(--font-mono); font-size: 13.5px; white-space: pre-wrap; word-break: break-word; }
+.now .now-expl { margin: 0; font-size: 14.5px; }
+.now .outcome { margin: 0; font-size: 14px; font-weight: 600; }
+.now ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.now ul li { font-family: var(--font-mono); font-size: 12.5px; }
+
+.panel h4 { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin: 0 0 6px; letter-spacing: 0.02em; }
+.panel h4 small { font-family: var(--font-body); font-weight: 400; color: var(--muted); font-size: 12px; letter-spacing: 0; }
+table.vals { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.vals th, table.vals td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.vals th { font-weight: 600; color: var(--muted); width: 1%; white-space: nowrap; }
+table.vals td.hex { color: var(--muted); word-break: break-all; }
+table.vals td.mean { color: var(--muted); font-family: var(--font-body); font-size: 12px; }
+table.vals tr.chg td, table.vals tr.chg th { background: var(--changed-soft); color: var(--changed); }
+.flags { display: flex; gap: 8px; flex-wrap: wrap; }
+.flag { font-family: var(--font-mono); font-size: 12.5px; border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; }
+.flag.on { border-color: var(--changed); color: var(--changed); background: var(--changed-soft); }
+.cells { display: flex; flex-wrap: wrap; gap: 3px; }
+.cell { display: grid; justify-items: center; min-width: 24px; border: 1px solid var(--rule); border-radius: 4px; padding: 2px 3px; font-family: var(--font-mono); }
+.cell b { font-size: 14px; font-weight: 500; }
+.cell i { font-style: normal; font-size: 9.5px; color: var(--muted); }
+.cell.at { border-color: var(--accent); background: var(--accent-soft); }
+.stack { display: grid; gap: 3px; font-family: var(--font-mono); font-size: 12.5px; }
+.stack .item { border: 1px solid var(--rule); border-radius: 5px; padding: 3px 8px; display: flex; justify-content: space-between; gap: 8px; }
+.stack .item.top { border-color: var(--changed); }
+.stack .empty { color: var(--muted); font-family: var(--font-body); font-size: 13px; }
+.term { background: #0e1416; color: #d7e4df; border-radius: 8px; padding: 10px 12px; font-family: var(--font-mono); font-size: 13px; min-height: 52px; white-space: pre-wrap; word-break: break-word; }
+.term .typed { color: #f0b555; font-style: italic; }
+.term .cursor { display: inline-block; width: 7px; height: 14px; background: #d7e4df; vertical-align: -2px; opacity: 0.6; }
+
+footer.note { margin-top: 36px; font-size: 13px; color: var(--muted); max-width: 80ch; }
+
+@media (max-width: 999px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .run { position: static; max-height: none; order: -1; }
+}
+@media (max-width: 520px) {
+  .row { grid-template-columns: 40px minmax(0, 1fr); }
+  .row .src { font-size: 12.5px; }
+  .wrap { padding-block: 24px 48px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="intro">
+    <div class="eyebrow">CSC35500 · Project 1 · NASM x86-64</div>
+    <h1>How <span class="file">ipcheck.asm</span> works, line by line</h1>
+    <p class="lede">Every line of the program, explained for someone seeing assembly for the first time. On the right, you can watch the real program run one instruction at a time.</p>
+    <ul class="howto">
+      <li>Read the six ideas below first. Everything else builds on them.</li>
+      <li>Then read the code from the top. Each line has a plain-English explanation under it.</li>
+      <li>Use <b>Step</b> in the “Watch it run” panel (or the → key) to see what each line actually does to the registers and memory. Click any line of code to jump to the next time it runs.</li>
+    </ul>
+  </header>
+
+  <section class="block" id="ideas">
+    <h2>Six ideas to know first</h2>
+    <p class="sub">Assembly is just these ideas, repeated. If a line below confuses you, the answer is almost always one of these.</p>
+    <div class="ideas">
+      <div class="idea">
+        <h3>Registers are tiny boxes in the CPU</h3>
+        <p>The CPU has a few named boxes that each hold one number: RAX, RBX, RCX, RDX, RSI and RDI. Almost every instruction works on them. <code>AL</code> is just the lowest 8 bits (one byte) of RAX.</p>
+        <div class="ex">mov rax, 5     ; RAX is now 5</div>
+      </div>
+      <div class="idea">
+        <h3>One line does one tiny thing</h3>
+        <p>The first word is the instruction. The destination comes first, then the source.</p>
+        <div class="ex">add rax, rbx   ; RAX = RAX + RBX
+inc rsi        ; RSI = RSI + 1</div>
+      </div>
+      <div class="idea">
+        <h3>Labels name places in memory</h3>
+        <p>A label like <code>total:</code> is a name for an address. Without brackets you get the <em>address</em>. With brackets you get the <em>value stored there</em>.</p>
+        <div class="ex">mov rcx, prompt   ; the address
+mov rax, [total]  ; what's stored there</div>
+      </div>
+      <div class="idea">
+        <h3>Characters are numbers</h3>
+        <p>Text is stored as ASCII codes. <code>'0'</code> is 48, <code>'9'</code> is 57, <code>'.'</code> is 46, a space is 32 and the Enter key's newline is 10 (<code>0xA</code>).</p>
+        <div class="ex">'7' - '0'  =  55 - 48  =  7</div>
+      </div>
+      <div class="idea">
+        <h3>An “if” is a compare plus a jump</h3>
+        <p><code>cmp</code> compares two values and sets the flags. The jump on the next line reads the flags and either jumps to a label or falls through to the next line.</p>
+        <div class="ex">cmp al, '.'
+je  gotDot     ; jump if equal</div>
+      </div>
+      <div class="idea">
+        <h3>Ask Linux with int 0x80</h3>
+        <p>Your program can't read the keyboard or print by itself. It puts a request number in RAX (3 read, 4 write, 1 exit), the details in RBX, RCX and RDX, then runs <code>int 0x80</code>. <code>call</code> and <code>ret</code> work like a function call and return.</p>
+        <div class="ex">mov rax, 4   ; write
+int 0x80</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="glance">
+    <h2>The program at a glance</h2>
+    <p class="sub">The code runs top to bottom in five steps. The loop in step 2 runs once per character typed. The three functions at the bottom only run when something calls them.</p>
+    <nav class="flow" aria-label="Program sections">
+      <a href="#s-step1"><b>1 · Prompt &amp; read</b><span>print, then read the keyboard</span></a><span class="arrow">→</span>
+      <a href="#s-step2"><b>2 · Character loop</b><span>digit, dot, Enter or illegal?</span></a><span class="arrow">→</span>
+      <a href="#s-step3"><b>3 · Dot</b><span>a number is finished</span></a><span class="arrow">→</span>
+      <a href="#s-step4"><b>4 · End of input</b><span>was it complete?</span></a><span class="arrow">→</span>
+      <a href="#s-step5"><b>5 · Print &amp; exit</b><span>checksum or “Illegal”</span></a>
+      <a class="fn" href="#s-printString"><b>printString</b><span>print some text</span></a>
+      <a class="fn" href="#s-addToChecksum"><b>addToChecksum</b><span>(num % 31) − 15</span></a>
+      <a class="fn" href="#s-printNumber"><b>printNumber</b><span>number → characters</span></a>
+    </nav>
+  </section>
+
+  <section class="block" id="code">
+    <h2>The code</h2>
+    <div class="workspace">
+      <div class="listing" id="listing">
+        <div class="list-tools">
+          <label for="toggle-expl"><input type="checkbox" id="toggle-expl" checked> Show explanations</label>
+          <span>Small teal numbers in the margin = how many times that line ran for the selected input.</span>
+        </div>
+        <div id="sections"></div>
+      </div>
+
+      <aside class="run" id="run" aria-label="Watch it run">
+        <div>
+          <h2>Watch it run</h2>
+          <p class="hint">The real program, recorded one instruction at a time. Pick an input, then press Step.</p>
+        </div>
+        <div class="inputs" id="inputs"></div>
+        <div class="controls">
+          <button type="button" id="b-start" title="Back to the beginning">⏮ Start</button>
+          <button type="button" id="b-back" title="Previous step (← key)">◀ Back</button>
+          <button type="button" id="b-step" class="primary" title="Next step (→ key)">Step ▶</button>
+          <button type="button" id="b-play">Play</button>
+          <button type="button" id="b-end" title="Jump to the end">End ⏭</button>
+        </div>
+        <div class="scrub">
+          <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Step">
+          <div class="stepcount" id="stepcount"></div>
+        </div>
+        <div class="now" id="now" aria-live="polite"></div>
+        <div class="panel">
+          <h4>Registers <small>· teal = just changed</small></h4>
+          <table class="vals" id="regs"></table>
+        </div>
+        <div class="panel">
+          <h4>Variables in memory</h4>
+          <table class="vals" id="vars"></table>
+        </div>
+        <div class="panel">
+          <h4>Flags <small>· set by cmp, sub, dec…; read by jumps</small></h4>
+          <div class="flags" id="flags"></div>
+        </div>
+        <div class="panel">
+          <h4>buffer <small>· what was typed; amber = position RSI</small></h4>
+          <div class="cells" id="buffer"></div>
+        </div>
+        <div class="panel" id="outbuf-panel">
+          <h4>outBuf <small>· digits being built for printing</small></h4>
+          <div class="cells" id="outbuf"></div>
+        </div>
+        <div class="panel">
+          <h4>Stack <small>· top first</small></h4>
+          <div class="stack" id="stack"></div>
+        </div>
+        <div class="panel">
+          <h4>Terminal</h4>
+          <div class="term" id="term"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <footer class="note">
+    The “Watch it run” data was recorded by running the real <code>ipcheck</code> program (built with the class <code>nasm</code> and <code>ld</code> commands) under the gdb debugger on Linux, one instruction at a time. RSP and RBP aren't shown; the Stack box shows what's on the stack instead.
+  </footer>
+</div>
+
+<script>
+const DATA = {"code":[";==============================================================================","; CSC35500 Programming Project 1 - IP address checksum","; Name: Callum Hudson",";","; What this program does:",";   1. Prints \"Enter an IP address: \" and reads what the user types.",";   2. Walks through the input one character at a time:",";        - digits are built up into a number (like 2, then 25, then 255)",";        - a dot (.) ends the current number",";        - a newline (Enter key) ends the whole input",";        - ANY other character (space, letter, slash, ...) makes it illegal",";   3. The address is legal only if it has exactly 4 numbers, exactly 3 dots,",";      every number has at least one digit, and no number is over 255.",";   4. If legal, it prints the checksum: for each number, (number % 31) - 15,",";      all added together.  Otherwise it prints \"Illegal IP address\".",";","; Build (same commands as the lecture slides):",";   nasm -gstabs -felf64 -l ipcheck.lst ipcheck.asm",";   ld ipcheck.o -o ipcheck","; Run:",";   ./ipcheck",";==============================================================================","","          section .data","prompt:   db \"Enter an IP address: \"     ; 21 characters (no newline)","result:   db \"The checksum is \"          ; 16 characters","illegal:  db \"Illegal IP address\", 0xA   ; 19 characters (includes newline)","minus:    db \"-\"                         ; 1 character, for negative answers","newline:  db 0xA                         ; 1 character","","; Variables the program keeps track of while it reads the input.","; dq = \"define quadword\" = 8 bytes (64 bits), starting at 0.","length:   dq 0      ; how many characters the read syscall gave us","num:      dq 0      ; the number we are currently building (e.g. 191)","digits:   dq 0      ; how many digits the current number has so far","dots:     dq 0      ; how many dots we have seen so far","total:    dq 0      ; running checksum total (can go negative)","","          section .bss","buffer:   resb 256  ; \"reserve\" 256 bytes to hold what the user types","outBuf:   resb 32   ; room to build the checksum's digits for printing","","          section .text","          global _start","","_start:",";------------------------------------------------------------------------------","; Step 1: print the prompt and read the user's input",";------------------------------------------------------------------------------","          mov     rcx, prompt     ; address of the prompt text","          mov     rdx, 21         ; number of characters to print","          call    printString     ; print it (function at the bottom)","","          mov     rax, 3          ; syscall 3 = read","          mov     rbx, 0          ; file 0 = stdin (the keyboard)","          mov     rcx, buffer     ; where to store the characters","          mov     rdx, 256        ; read at most 256 characters","          int     0x80            ; ask Linux to do the read","          mov     [length], rax   ; Linux returns the number of characters in RAX","","          mov     rsi, 0          ; RSI = index of the character we're looking at","",";------------------------------------------------------------------------------","; Step 2: look at each character, one at a time",";------------------------------------------------------------------------------","nextChar:","          cmp     rsi, [length]   ; have we looked at every character?","          jge     endOfInput      ; yes -> input is over","","          mov     rax, 0          ; clear all 64 bits of RAX first...","          mov     al, [buffer+rsi]; ...then copy ONE character (1 byte) into AL","","          cmp     al, 0xA         ; is it the newline from pressing Enter?","          je      endOfInput      ; yes -> input is over","","          cmp     al, '.'         ; is it a dot?","          je      gotDot          ; yes -> finish the current number","","          cmp     al, '0'         ; anything below '0' in the ASCII table...","          jl      badAddress      ; ...is not a digit -> illegal","          cmp     al, '9'         ; anything above '9' in the ASCII table...","          jg      badAddress      ; ...is not a digit -> illegal","","; It's a digit.  Characters are stored as ASCII codes: '0' is 48, '1' is 49,","; ... '9' is 57.  Subtracting '0' (48) turns the character into its value.","          sub     al, '0'         ; e.g. '7' (55) - '0' (48) = 7","          mov     rbx, rax        ; save the digit's value in RBX","","; New number = old number * 10 + digit.   Example: 19 then '1' -> 190 + 1 = 191","          mov     rax, [num]      ; RAX = number built so far","          mov     rcx, 10         ; MUL can't take a constant, so put 10 in RCX","          mul     rcx             ; RDX:RAX = RAX * 10 (overwrites RDX)","          add     rax, rbx        ; add the new digit","          mov     [num], rax      ; save the updated number","          inc     qword [digits]  ; one more digit in this number","","          cmp     rax, 255        ; checked after EVERY digit, so a huge","          jg      badAddress      ; number can't get out of hand: >255 = illegal","","          inc     rsi             ; move to the next character","          jmp     nextChar","",";------------------------------------------------------------------------------","; Step 3: a dot ends the current number",";------------------------------------------------------------------------------","gotDot:","          cmp     qword [digits], 0 ; a dot with no digits before it?","          je      badAddress        ; (catches \".1.2.3\" and \"1..2.3\") -> illegal","","          call    addToChecksum   ; add (num % 31) - 15 to the total","","          inc     qword [dots]    ; count this dot","          cmp     qword [dots], 3 ; more than 3 dots?","          jg      badAddress      ; -> illegal","","          mov     qword [num], 0     ; start the next number fresh","          mov     qword [digits], 0","          inc     rsi             ; move past the dot","          jmp     nextChar","",";------------------------------------------------------------------------------","; Step 4: input is over - make sure the address was complete",";------------------------------------------------------------------------------","endOfInput:","          cmp     qword [digits], 0 ; last number has no digits?","          je      badAddress        ; (catches \"1.2.3.\" and empty input)","          cmp     qword [dots], 3   ; need exactly 3 dots (so 4 numbers)","          jne     badAddress","","          call    addToChecksum   ; add the 4th (last) number","",";------------------------------------------------------------------------------","; Step 5: print \"The checksum is <total>\" and a newline",";------------------------------------------------------------------------------","          mov     rcx, result","          mov     rdx, 16","          call    printString","","          mov     rax, [total]    ; number to print goes in RAX","          call    printNumber","","          mov     rcx, newline","          mov     rdx, 1","          call    printString","          jmp     exitProgram","","badAddress:","          mov     rcx, illegal    ; print \"Illegal IP address\" + newline","          mov     rdx, 19","          call    printString","","exitProgram:","          mov     rax, 1          ; syscall 1 = exit","          mov     rbx, 0          ; return value 0 = success","          int     0x80","",";==============================================================================","; Functions",";==============================================================================","",";------------------------------------------------------------------------------","; printString: prints RDX characters starting at address RCX.",";------------------------------------------------------------------------------","printString:","          mov     rax, 4          ; syscall 4 = write","          mov     rbx, 1          ; file 1 = stdout (the screen)","          int     0x80            ; RCX = address, RDX = length (set by caller)","          ret","",";------------------------------------------------------------------------------","; addToChecksum: total = total + ((num % 31) - 15)",";------------------------------------------------------------------------------","addToChecksum:","          mov     rax, [num]      ; dividend goes in RAX","          mov     rdx, 0          ; DIV divides RDX:RAX, so RDX must be 0 first!","          mov     rbx, 31         ; DIV can't take a constant either","          div     rbx             ; RAX = num / 31, RDX = num % 31 (remainder)","          sub     rdx, 15         ; (num % 31) - 15   (may be negative)","          mov     rax, [total]","          add     rax, rdx        ; add it to the running total","          mov     [total], rax","          ret","",";------------------------------------------------------------------------------","; printNumber: prints the signed number in RAX in decimal (e.g. -33 or 26).",";","; How: if negative, print \"-\" and flip it positive.  Then divide by 10 over and","; over; each remainder is one digit, but they come out backwards (last digit","; first).  Pushing them on the stack and popping them back off reverses them.",";------------------------------------------------------------------------------","printNumber:","          cmp     rax, 0          ; is the number negative?","          jge     notNegative","","          push    rax             ; printString changes RAX, so save the number","          mov     rcx, minus","          mov     rdx, 1","          call    printString     ; print \"-\"","          pop     rax             ; get the number back","","          mov     rbx, 0          ; flip the sign: 0 - number","          sub     rbx, rax        ; e.g. 0 - (-33) = 33","          mov     rax, rbx","","notNegative:","          mov     rbx, 10         ; we divide by 10","          mov     rdi, 0          ; RDI counts how many digits we pushed","digitLoop:","          mov     rdx, 0          ; clear RDX before every DIV!","          div     rbx             ; RAX = RAX / 10, RDX = last digit (0-9)","          add     rdx, '0'        ; turn the digit into its ASCII character","          push    rdx             ; save it on the stack","          inc     rdi             ; one more digit","          cmp     rax, 0          ; anything left to divide?","          jne     digitLoop","","          mov     rsi, 0          ; RSI = position in outBuf","popLoop:","          pop     rax             ; digits come back first-digit-first","          mov     [outBuf+rsi], al; store the character (1 byte)","          inc     rsi","          dec     rdi             ; one less digit left on the stack","          jnz     popLoop         ; keep going until all are popped","","          mov     rcx, outBuf     ; print the digits","          mov     rdx, rsi        ; RSI = how many digits","          call    printString","          ret"],"instr":[50,51,52,54,55,56,57,58,59,61,67,68,70,71,73,74,76,77,79,80,81,82,86,87,90,91,92,93,94,95,97,98,100,101,107,108,110,112,113,114,116,117,118,119,125,126,127,128,130,135,136,137,139,140,142,143,144,145,148,149,150,153,154,155,165,166,167,168,174,175,176,177,178,179,180,181,182,192,193,195,196,197,198,199,201,202,203,206,207,209,210,211,212,213,214,215,217,219,220,221,222,223,225,226,227,228],"traces":[{"label":"68.191.206.51","sub":"Example 1 \u00b7 legal","input":"68.191.206.51\n","buffer":"68.191.206.51\n","readStep":12,"steps":[[null,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[50,51,0,0,4202496,0,0,0,0,0,0,0,0,0,0,0,0,0],[51,52,0,0,4202496,21,0,0,0,0,0,0,0,0,0,0,0,0],[52,165,0,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[165,166,4,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[166,167,4,1,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[167,168,21,1,4202496,21,0,0,0,0,0,0,0,0,1,1,0,0],[168,54,21,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[54,55,3,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[55,56,3,0,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[56,57,3,0,4202596,21,0,0,0,0,0,0,0,0,0,1,0,0],[57,58,3,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[58,59,14,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[59,61,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[61,67,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[67,68,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[68,70,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[70,71,0,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[71,73,54,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[73,74,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[74,76,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[76,77,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[77,79,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[79,80,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[80,81,54,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[81,82,54,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[82,86,54,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[86,87,6,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[87,90,6,6,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[90,91,0,6,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[91,92,0,6,10,256,0,0,0,14,0,0,0,0,0,1,0,0],[92,93,0,6,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[93,94,6,6,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[94,95,6,6,10,0,0,0,0,14,6,0,0,0,0,1,0,0],[95,97,6,6,10,0,0,0,0,14,6,1,0,0,0,1,0,0],[97,98,6,6,10,0,0,0,6,14,6,1,0,0,0,1,0,0],[98,100,6,6,10,0,0,0,6,14,6,1,0,0,0,1,0,0],[100,101,6,6,10,0,1,0,4,14,6,1,0,0,0,1,0,0],[101,67,6,6,10,0,1,0,4,14,6,1,0,0,0,1,0,0],[67,68,6,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[68,70,6,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[70,71,0,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[71,73,56,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[73,74,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[74,76,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[76,77,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[77,79,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[79,80,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[80,81,56,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[81,82,56,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[82,86,56,6,10,0,1,0,6,14,6,1,0,0,0,1,0,0],[86,87,8,6,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[87,90,8,8,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[90,91,6,8,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[91,92,6,8,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[92,93,60,8,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[93,94,68,8,10,0,1,0,0,14,6,1,0,0,0,1,0,0],[94,95,68,8,10,0,1,0,0,14,68,1,0,0,0,1,0,0],[95,97,68,8,10,0,1,0,0,14,68,2,0,0,0,1,0,0],[97,98,68,8,10,0,1,0,6,14,68,2,0,0,0,1,0,0],[98,100,68,8,10,0,1,0,6,14,68,2,0,0,0,1,0,0],[100,101,68,8,10,0,2,0,4,14,68,2,0,0,0,1,0,0],[101,67,68,8,10,0,2,0,4,14,68,2,0,0,0,1,0,0],[67,68,68,8,10,0,2,0,6,14,68,2,0,0,0,1,0,0],[68,70,68,8,10,0,2,0,6,14,68,2,0,0,0,1,0,0],[70,71,0,8,10,0,2,0,6,14,68,2,0,0,0,1,0,0],[71,73,46,8,10,0,2,0,6,14,68,2,0,0,0,1,0,0],[73,74,46,8,10,0,2,0,0,14,68,2,0,0,0,1,0,0],[74,76,46,8,10,0,2,0,0,14,68,2,0,0,0,1,0,0],[76,77,46,8,10,0,2,0,1,14,68,2,0,0,0,1,0,0],[77,107,46,8,10,0,2,0,1,14,68,2,0,0,0,1,0,0],[107,108,46,8,10,0,2,0,0,14,68,2,0,0,0,1,0,0],[108,110,46,8,10,0,2,0,0,14,68,2,0,0,0,1,0,0],[110,174,46,8,10,0,2,0,0,14,68,2,0,0,2,1,0,0],[174,175,68,8,10,0,2,0,0,14,68,2,0,0,2,1,0,0],[175,176,68,8,10,0,2,0,0,14,68,2,0,0,2,1,0,0],[176,177,68,31,10,0,2,0,0,14,68,2,0,0,2,1,0,0],[177,178,2,31,10,6,2,0,0,14,68,2,0,0,2,1,0,0],[178,179,2,31,10,-9,2,0,6,14,68,2,0,0,2,1,0,0],[179,180,0,31,10,-9,2,0,6,14,68,2,0,0,2,1,0,0],[180,181,-9,31,10,-9,2,0,2,14,68,2,0,0,2,1,0,0],[181,182,-9,31,10,-9,2,0,2,14,68,2,0,-9,2,1,0,0],[182,112,-9,31,10,-9,2,0,2,14,68,2,0,-9,0,1,0,0],[112,113,-9,31,10,-9,2,0,0,14,68,2,1,-9,0,1,0,0],[113,114,-9,31,10,-9,2,0,6,14,68,2,1,-9,0,1,0,0],[114,116,-9,31,10,-9,2,0,6,14,68,2,1,-9,0,1,0,0],[116,117,-9,31,10,-9,2,0,6,14,0,2,1,-9,0,1,0,0],[117,118,-9,31,10,-9,2,0,6,14,0,0,1,-9,0,1,0,0],[118,119,-9,31,10,-9,3,0,4,14,0,0,1,-9,0,1,0,0],[119,67,-9,31,10,-9,3,0,4,14,0,0,1,-9,0,1,0,0],[67,68,-9,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[68,70,-9,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[70,71,0,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[71,73,49,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[73,74,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[74,76,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[76,77,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[77,79,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[79,80,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[80,81,49,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[81,82,49,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[82,86,49,31,10,-9,3,0,6,14,0,0,1,-9,0,1,0,0],[86,87,1,31,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[87,90,1,1,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[90,91,0,1,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[91,92,0,1,10,-9,3,0,0,14,0,0,1,-9,0,1,0,0],[92,93,0,1,10,0,3,0,0,14,0,0,1,-9,0,1,0,0],[93,94,1,1,10,0,3,0,0,14,0,0,1,-9,0,1,0,0],[94,95,1,1,10,0,3,0,0,14,1,0,1,-9,0,1,0,0],[95,97,1,1,10,0,3,0,0,14,1,1,1,-9,0,1,0,0],[97,98,1,1,10,0,3,0,6,14,1,1,1,-9,0,1,0,0],[98,100,1,1,10,0,3,0,6,14,1,1,1,-9,0,1,0,0],[100,101,1,1,10,0,4,0,4,14,1,1,1,-9,0,1,0,0],[101,67,1,1,10,0,4,0,4,14,1,1,1,-9,0,1,0,0],[67,68,1,1,10,0,4,0,6,14,1,1,1,-9,0,1,0,0],[68,70,1,1,10,0,4,0,6,14,1,1,1,-9,0,1,0,0],[70,71,0,1,10,0,4,0,6,14,1,1,1,-9,0,1,0,0],[71,73,57,1,10,0,4,0,6,14,1,1,1,-9,0,1,0,0],[73,74,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[74,76,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[76,77,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[77,79,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[79,80,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[80,81,57,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[81,82,57,1,10,0,4,0,1,14,1,1,1,-9,0,1,0,0],[82,86,57,1,10,0,4,0,1,14,1,1,1,-9,0,1,0,0],[86,87,9,1,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[87,90,9,9,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[90,91,1,9,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[91,92,1,9,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[92,93,10,9,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[93,94,19,9,10,0,4,0,0,14,1,1,1,-9,0,1,0,0],[94,95,19,9,10,0,4,0,0,14,19,1,1,-9,0,1,0,0],[95,97,19,9,10,0,4,0,0,14,19,2,1,-9,0,1,0,0],[97,98,19,9,10,0,4,0,6,14,19,2,1,-9,0,1,0,0],[98,100,19,9,10,0,4,0,6,14,19,2,1,-9,0,1,0,0],[100,101,19,9,10,0,5,0,4,14,19,2,1,-9,0,1,0,0],[101,67,19,9,10,0,5,0,4,14,19,2,1,-9,0,1,0,0],[67,68,19,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[68,70,19,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[70,71,0,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[71,73,49,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[73,74,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[74,76,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[76,77,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[77,79,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[79,80,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[80,81,49,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[81,82,49,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[82,86,49,9,10,0,5,0,6,14,19,2,1,-9,0,1,0,0],[86,87,1,9,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[87,90,1,1,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[90,91,19,1,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[91,92,19,1,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[92,93,190,1,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[93,94,191,1,10,0,5,0,0,14,19,2,1,-9,0,1,0,0],[94,95,191,1,10,0,5,0,0,14,191,2,1,-9,0,1,0,0],[95,97,191,1,10,0,5,0,0,14,191,3,1,-9,0,1,0,0],[97,98,191,1,10,0,5,0,6,14,191,3,1,-9,0,1,0,0],[98,100,191,1,10,0,5,0,6,14,191,3,1,-9,0,1,0,0],[100,101,191,1,10,0,6,0,4,14,191,3,1,-9,0,1,0,0],[101,67,191,1,10,0,6,0,4,14,191,3,1,-9,0,1,0,0],[67,68,191,1,10,0,6,0,6,14,191,3,1,-9,0,1,0,0],[68,70,191,1,10,0,6,0,6,14,191,3,1,-9,0,1,0,0],[70,71,0,1,10,0,6,0,6,14,191,3,1,-9,0,1,0,0],[71,73,46,1,10,0,6,0,6,14,191,3,1,-9,0,1,0,0],[73,74,46,1,10,0,6,0,0,14,191,3,1,-9,0,1,0,0],[74,76,46,1,10,0,6,0,0,14,191,3,1,-9,0,1,0,0],[76,77,46,1,10,0,6,0,1,14,191,3,1,-9,0,1,0,0],[77,107,46,1,10,0,6,0,1,14,191,3,1,-9,0,1,0,0],[107,108,46,1,10,0,6,0,0,14,191,3,1,-9,0,1,0,0],[108,110,46,1,10,0,6,0,0,14,191,3,1,-9,0,1,0,0],[110,174,46,1,10,0,6,0,0,14,191,3,1,-9,2,1,0,0],[174,175,191,1,10,0,6,0,0,14,191,3,1,-9,2,1,0,0],[175,176,191,1,10,0,6,0,0,14,191,3,1,-9,2,1,0,0],[176,177,191,31,10,0,6,0,0,14,191,3,1,-9,2,1,0,0],[177,178,6,31,10,5,6,0,0,14,191,3,1,-9,2,1,0,0],[178,179,6,31,10,-10,6,0,6,14,191,3,1,-9,2,1,0,0],[179,180,-9,31,10,-10,6,0,6,14,191,3,1,-9,2,1,0,0],[180,181,-19,31,10,-10,6,0,6,14,191,3,1,-9,2,1,0,0],[181,182,-19,31,10,-10,6,0,6,14,191,3,1,-19,2,1,0,0],[182,112,-19,31,10,-10,6,0,6,14,191,3,1,-19,0,1,0,0],[112,113,-19,31,10,-10,6,0,4,14,191,3,2,-19,0,1,0,0],[113,114,-19,31,10,-10,6,0,6,14,191,3,2,-19,0,1,0,0],[114,116,-19,31,10,-10,6,0,6,14,191,3,2,-19,0,1,0,0],[116,117,-19,31,10,-10,6,0,6,14,0,3,2,-19,0,1,0,0],[117,118,-19,31,10,-10,6,0,6,14,0,0,2,-19,0,1,0,0],[118,119,-19,31,10,-10,7,0,4,14,0,0,2,-19,0,1,0,0],[119,67,-19,31,10,-10,7,0,4,14,0,0,2,-19,0,1,0,0],[67,68,-19,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[68,70,-19,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[70,71,0,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[71,73,50,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[73,74,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[74,76,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[76,77,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[77,79,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[79,80,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[80,81,50,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[81,82,50,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[82,86,50,31,10,-10,7,0,6,14,0,0,2,-19,0,1,0,0],[86,87,2,31,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[87,90,2,2,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[90,91,0,2,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[91,92,0,2,10,-10,7,0,0,14,0,0,2,-19,0,1,0,0],[92,93,0,2,10,0,7,0,0,14,0,0,2,-19,0,1,0,0],[93,94,2,2,10,0,7,0,0,14,0,0,2,-19,0,1,0,0],[94,95,2,2,10,0,7,0,0,14,2,0,2,-19,0,1,0,0],[95,97,2,2,10,0,7,0,0,14,2,1,2,-19,0,1,0,0],[97,98,2,2,10,0,7,0,6,14,2,1,2,-19,0,1,0,0],[98,100,2,2,10,0,7,0,6,14,2,1,2,-19,0,1,0,0],[100,101,2,2,10,0,8,0,4,14,2,1,2,-19,0,1,0,0],[101,67,2,2,10,0,8,0,4,14,2,1,2,-19,0,1,0,0],[67,68,2,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[68,70,2,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[70,71,0,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[71,73,48,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[73,74,48,2,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[74,76,48,2,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[76,77,48,2,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[77,79,48,2,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[79,80,48,2,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[80,81,48,2,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[81,82,48,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[82,86,48,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[86,87,0,2,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[87,90,0,0,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[90,91,2,0,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[91,92,2,0,10,0,8,0,1,14,2,1,2,-19,0,1,0,0],[92,93,20,0,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[93,94,20,0,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[94,95,20,0,10,0,8,0,0,14,20,1,2,-19,0,1,0,0],[95,97,20,0,10,0,8,0,0,14,20,2,2,-19,0,1,0,0],[97,98,20,0,10,0,8,0,6,14,20,2,2,-19,0,1,0,0],[98,100,20,0,10,0,8,0,6,14,20,2,2,-19,0,1,0,0],[100,101,20,0,10,0,9,0,4,14,20,2,2,-19,0,1,0,0],[101,67,20,0,10,0,9,0,4,14,20,2,2,-19,0,1,0,0],[67,68,20,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[68,70,20,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[70,71,0,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[71,73,54,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[73,74,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[74,76,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[76,77,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[77,79,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[79,80,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[80,81,54,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[81,82,54,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[82,86,54,0,10,0,9,0,6,14,20,2,2,-19,0,1,0,0],[86,87,6,0,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[87,90,6,6,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[90,91,20,6,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[91,92,20,6,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[92,93,200,6,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[93,94,206,6,10,0,9,0,0,14,20,2,2,-19,0,1,0,0],[94,95,206,6,10,0,9,0,0,14,206,2,2,-19,0,1,0,0],[95,97,206,6,10,0,9,0,0,14,206,3,2,-19,0,1,0,0],[97,98,206,6,10,0,9,0,6,14,206,3,2,-19,0,1,0,0],[98,100,206,6,10,0,9,0,6,14,206,3,2,-19,0,1,0,0],[100,101,206,6,10,0,10,0,4,14,206,3,2,-19,0,1,0,0],[101,67,206,6,10,0,10,0,4,14,206,3,2,-19,0,1,0,0],[67,68,206,6,10,0,10,0,6,14,206,3,2,-19,0,1,0,0],[68,70,206,6,10,0,10,0,6,14,206,3,2,-19,0,1,0,0],[70,71,0,6,10,0,10,0,6,14,206,3,2,-19,0,1,0,0],[71,73,46,6,10,0,10,0,6,14,206,3,2,-19,0,1,0,0],[73,74,46,6,10,0,10,0,0,14,206,3,2,-19,0,1,0,0],[74,76,46,6,10,0,10,0,0,14,206,3,2,-19,0,1,0,0],[76,77,46,6,10,0,10,0,1,14,206,3,2,-19,0,1,0,0],[77,107,46,6,10,0,10,0,1,14,206,3,2,-19,0,1,0,0],[107,108,46,6,10,0,10,0,0,14,206,3,2,-19,0,1,0,0],[108,110,46,6,10,0,10,0,0,14,206,3,2,-19,0,1,0,0],[110,174,46,6,10,0,10,0,0,14,206,3,2,-19,2,1,0,0],[174,175,206,6,10,0,10,0,0,14,206,3,2,-19,2,1,0,0],[175,176,206,6,10,0,10,0,0,14,206,3,2,-19,2,1,0,0],[176,177,206,31,10,0,10,0,0,14,206,3,2,-19,2,1,0,0],[177,178,6,31,10,20,10,0,0,14,206,3,2,-19,2,1,0,0],[178,179,6,31,10,5,10,0,0,14,206,3,2,-19,2,1,0,0],[179,180,-19,31,10,5,10,0,0,14,206,3,2,-19,2,1,0,0],[180,181,-14,31,10,5,10,0,2,14,206,3,2,-19,2,1,0,0],[181,182,-14,31,10,5,10,0,2,14,206,3,2,-14,2,1,0,0],[182,112,-14,31,10,5,10,0,2,14,206,3,2,-14,0,1,0,0],[112,113,-14,31,10,5,10,0,0,14,206,3,3,-14,0,1,0,0],[113,114,-14,31,10,5,10,0,1,14,206,3,3,-14,0,1,0,0],[114,116,-14,31,10,5,10,0,1,14,206,3,3,-14,0,1,0,0],[116,117,-14,31,10,5,10,0,1,14,0,3,3,-14,0,1,0,0],[117,118,-14,31,10,5,10,0,1,14,0,0,3,-14,0,1,0,0],[118,119,-14,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[119,67,-14,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[67,68,-14,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[68,70,-14,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[70,71,0,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[71,73,53,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[73,74,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[74,76,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[76,77,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[77,79,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[79,80,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[80,81,53,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[81,82,53,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[82,86,53,31,10,5,11,0,6,14,0,0,3,-14,0,1,0,0],[86,87,5,31,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[87,90,5,5,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[90,91,0,5,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[91,92,0,5,10,5,11,0,0,14,0,0,3,-14,0,1,0,0],[92,93,0,5,10,0,11,0,0,14,0,0,3,-14,0,1,0,0],[93,94,5,5,10,0,11,0,0,14,0,0,3,-14,0,1,0,0],[94,95,5,5,10,0,11,0,0,14,5,0,3,-14,0,1,0,0],[95,97,5,5,10,0,11,0,0,14,5,1,3,-14,0,1,0,0],[97,98,5,5,10,0,11,0,6,14,5,1,3,-14,0,1,0,0],[98,100,5,5,10,0,11,0,6,14,5,1,3,-14,0,1,0,0],[100,101,5,5,10,0,12,0,4,14,5,1,3,-14,0,1,0,0],[101,67,5,5,10,0,12,0,4,14,5,1,3,-14,0,1,0,0],[67,68,5,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[68,70,5,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[70,71,0,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[71,73,49,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[73,74,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[74,76,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[76,77,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[77,79,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[79,80,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[80,81,49,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[81,82,49,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[82,86,49,5,10,0,12,0,6,14,5,1,3,-14,0,1,0,0],[86,87,1,5,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[87,90,1,1,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[90,91,5,1,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[91,92,5,1,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[92,93,50,1,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[93,94,51,1,10,0,12,0,0,14,5,1,3,-14,0,1,0,0],[94,95,51,1,10,0,12,0,0,14,51,1,3,-14,0,1,0,0],[95,97,51,1,10,0,12,0,0,14,51,2,3,-14,0,1,0,0],[97,98,51,1,10,0,12,0,6,14,51,2,3,-14,0,1,0,0],[98,100,51,1,10,0,12,0,6,14,51,2,3,-14,0,1,0,0],[100,101,51,1,10,0,13,0,4,14,51,2,3,-14,0,1,0,0],[101,67,51,1,10,0,13,0,4,14,51,2,3,-14,0,1,0,0],[67,68,51,1,10,0,13,0,6,14,51,2,3,-14,0,1,0,0],[68,70,51,1,10,0,13,0,6,14,51,2,3,-14,0,1,0,0],[70,71,0,1,10,0,13,0,6,14,51,2,3,-14,0,1,0,0],[71,73,10,1,10,0,13,0,6,14,51,2,3,-14,0,1,0,0],[73,74,10,1,10,0,13,0,1,14,51,2,3,-14,0,1,0,0],[74,125,10,1,10,0,13,0,1,14,51,2,3,-14,0,1,0,0],[125,126,10,1,10,0,13,0,0,14,51,2,3,-14,0,1,0,0],[126,127,10,1,10,0,13,0,0,14,51,2,3,-14,0,1,0,0],[127,128,10,1,10,0,13,0,1,14,51,2,3,-14,0,1,0,0],[128,130,10,1,10,0,13,0,1,14,51,2,3,-14,0,1,0,0],[130,174,10,1,10,0,13,0,1,14,51,2,3,-14,3,1,0,0],[174,175,51,1,10,0,13,0,1,14,51,2,3,-14,3,1,0,0],[175,176,51,1,10,0,13,0,1,14,51,2,3,-14,3,1,0,0],[176,177,51,31,10,0,13,0,1,14,51,2,3,-14,3,1,0,0],[177,178,1,31,10,20,13,0,1,14,51,2,3,-14,3,1,0,0],[178,179,1,31,10,5,13,0,0,14,51,2,3,-14,3,1,0,0],[179,180,-14,31,10,5,13,0,0,14,51,2,3,-14,3,1,0,0],[180,181,-9,31,10,5,13,0,2,14,51,2,3,-14,3,1,0,0],[181,182,-9,31,10,5,13,0,2,14,51,2,3,-9,3,1,0,0],[182,135,-9,31,10,5,13,0,2,14,51,2,3,-9,0,1,0,0],[135,136,-9,31,4202517,5,13,0,2,14,51,2,3,-9,0,1,0,0],[136,137,-9,31,4202517,16,13,0,2,14,51,2,3,-9,0,1,0,0],[137,165,-9,31,4202517,16,13,0,2,14,51,2,3,-9,4,1,0,0],[165,166,4,31,4202517,16,13,0,2,14,51,2,3,-9,4,1,0,0],[166,167,4,1,4202517,16,13,0,2,14,51,2,3,-9,4,1,0,0],[167,168,16,1,4202517,16,13,0,2,14,51,2,3,-9,4,2,0,0],[168,139,16,1,4202517,16,13,0,2,14,51,2,3,-9,0,2,0,0],[139,140,-9,1,4202517,16,13,0,2,14,51,2,3,-9,0,2,0,0],[140,192,-9,1,4202517,16,13,0,2,14,51,2,3,-9,5,2,0,0],[192,193,-9,1,4202517,16,13,0,2,14,51,2,3,-9,5,2,0,0],[193,195,-9,1,4202517,16,13,0,2,14,51,2,3,-9,5,2,0,0],[195,196,-9,1,4202517,16,13,0,2,14,51,2,3,-9,6,2,0,0],[196,197,-9,1,4202552,16,13,0,2,14,51,2,3,-9,6,2,0,0],[197,198,-9,1,4202552,1,13,0,2,14,51,2,3,-9,6,2,0,0],[198,165,-9,1,4202552,1,13,0,2,14,51,2,3,-9,7,2,0,0],[165,166,4,1,4202552,1,13,0,2,14,51,2,3,-9,7,2,0,0],[166,167,4,1,4202552,1,13,0,2,14,51,2,3,-9,7,2,0,0],[167,168,1,1,4202552,1,13,0,2,14,51,2,3,-9,7,3,0,0],[168,199,1,1,4202552,1,13,0,2,14,51,2,3,-9,6,3,0,0],[199,201,-9,1,4202552,1,13,0,2,14,51,2,3,-9,5,3,0,0],[201,202,-9,0,4202552,1,13,0,2,14,51,2,3,-9,5,3,0,0],[202,203,-9,9,4202552,1,13,0,4,14,51,2,3,-9,5,3,0,0],[203,206,9,9,4202552,1,13,0,4,14,51,2,3,-9,5,3,0,0],[206,207,9,10,4202552,1,13,0,4,14,51,2,3,-9,5,3,0,0],[207,209,9,10,4202552,1,13,0,4,14,51,2,3,-9,5,3,0,0],[209,210,9,10,4202552,0,13,0,4,14,51,2,3,-9,5,3,0,0],[210,211,0,10,4202552,9,13,0,4,14,51,2,3,-9,5,3,0,0],[211,212,0,10,4202552,57,13,0,0,14,51,2,3,-9,5,3,0,0],[212,213,0,10,4202552,57,13,0,0,14,51,2,3,-9,8,3,0,0],[213,214,0,10,4202552,57,13,1,0,14,51,2,3,-9,8,3,0,0],[214,215,0,10,4202552,57,13,1,1,14,51,2,3,-9,8,3,0,0],[215,217,0,10,4202552,57,13,1,1,14,51,2,3,-9,8,3,0,0],[217,219,0,10,4202552,57,0,1,1,14,51,2,3,-9,8,3,0,0],[219,220,57,10,4202552,57,0,1,1,14,51,2,3,-9,5,3,0,0],[220,221,57,10,4202552,57,0,1,1,14,51,2,3,-9,5,3,1,0],[221,222,57,10,4202552,57,1,1,0,14,51,2,3,-9,5,3,1,0],[222,223,57,10,4202552,57,1,0,1,14,51,2,3,-9,5,3,1,0],[223,225,57,10,4202552,57,1,0,1,14,51,2,3,-9,5,3,1,0],[225,226,57,10,4202852,57,1,0,1,14,51,2,3,-9,5,3,1,0],[226,227,57,10,4202852,1,1,0,1,14,51,2,3,-9,5,3,1,0],[227,165,57,10,4202852,1,1,0,1,14,51,2,3,-9,9,3,1,0],[165,166,4,10,4202852,1,1,0,1,14,51,2,3,-9,9,3,1,0],[166,167,4,1,4202852,1,1,0,1,14,51,2,3,-9,9,3,1,0],[167,168,1,1,4202852,1,1,0,1,14,51,2,3,-9,9,4,1,0],[168,228,1,1,4202852,1,1,0,1,14,51,2,3,-9,5,4,1,0],[228,142,1,1,4202852,1,1,0,1,14,51,2,3,-9,0,4,1,0],[142,143,1,1,4202553,1,1,0,1,14,51,2,3,-9,0,4,1,0],[143,144,1,1,4202553,1,1,0,1,14,51,2,3,-9,0,4,1,0],[144,165,1,1,4202553,1,1,0,1,14,51,2,3,-9,10,4,1,0],[165,166,4,1,4202553,1,1,0,1,14,51,2,3,-9,10,4,1,0],[166,167,4,1,4202553,1,1,0,1,14,51,2,3,-9,10,4,1,0],[167,168,1,1,4202553,1,1,0,1,14,51,2,3,-9,10,5,1,0],[168,145,1,1,4202553,1,1,0,1,14,51,2,3,-9,0,5,1,0],[145,153,1,1,4202553,1,1,0,1,14,51,2,3,-9,0,5,1,0],[153,154,1,1,4202553,1,1,0,1,14,51,2,3,-9,0,5,1,0],[154,155,1,0,4202553,1,1,0,1,14,51,2,3,-9,0,5,1,0],[155,null,1,0,4202553,1,1,0,1,14,51,2,3,-9,0,5,1,1]],"stacks":[[],[{"ret":54}],[{"ret":112}],[{"ret":135}],[{"ret":139}],[{"ret":142}],[{"val":-9},{"ret":142}],[{"ret":199},{"val":-9},{"ret":142}],[{"val":57},{"ret":142}],[{"ret":228},{"ret":142}],[{"ret":145}]],"outs":["","Enter an IP address: ","Enter an IP address: The checksum is ","Enter an IP address: The checksum is -","Enter an IP address: The checksum is -9","Enter an IP address: The checksum is -9\n"],"outBufs":["","9"]},{"label":"253.254.256.1","sub":"Example 10 \u00b7 256 is too big","input":"253.254.256.1\n","buffer":"253.254.256.1\n","readStep":12,"steps":[[null,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[50,51,0,0,4202496,0,0,0,0,0,0,0,0,0,0,0,0,0],[51,52,0,0,4202496,21,0,0,0,0,0,0,0,0,0,0,0,0],[52,165,0,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[165,166,4,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[166,167,4,1,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[167,168,21,1,4202496,21,0,0,0,0,0,0,0,0,1,1,0,0],[168,54,21,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[54,55,3,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[55,56,3,0,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[56,57,3,0,4202596,21,0,0,0,0,0,0,0,0,0,1,0,0],[57,58,3,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[58,59,14,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[59,61,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[61,67,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[67,68,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[68,70,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[70,71,0,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[71,73,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[73,74,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[74,76,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[76,77,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[77,79,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[79,80,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[80,81,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[81,82,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[82,86,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[86,87,2,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[87,90,2,2,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[90,91,0,2,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[91,92,0,2,10,256,0,0,0,14,0,0,0,0,0,1,0,0],[92,93,0,2,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[93,94,2,2,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[94,95,2,2,10,0,0,0,0,14,2,0,0,0,0,1,0,0],[95,97,2,2,10,0,0,0,0,14,2,1,0,0,0,1,0,0],[97,98,2,2,10,0,0,0,6,14,2,1,0,0,0,1,0,0],[98,100,2,2,10,0,0,0,6,14,2,1,0,0,0,1,0,0],[100,101,2,2,10,0,1,0,4,14,2,1,0,0,0,1,0,0],[101,67,2,2,10,0,1,0,4,14,2,1,0,0,0,1,0,0],[67,68,2,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[68,70,2,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[70,71,0,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[71,73,53,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[73,74,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[74,76,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[76,77,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[77,79,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[79,80,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[80,81,53,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[81,82,53,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[82,86,53,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[86,87,5,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[87,90,5,5,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[90,91,2,5,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[91,92,2,5,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[92,93,20,5,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[93,94,25,5,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[94,95,25,5,10,0,1,0,0,14,25,1,0,0,0,1,0,0],[95,97,25,5,10,0,1,0,0,14,25,2,0,0,0,1,0,0],[97,98,25,5,10,0,1,0,6,14,25,2,0,0,0,1,0,0],[98,100,25,5,10,0,1,0,6,14,25,2,0,0,0,1,0,0],[100,101,25,5,10,0,2,0,4,14,25,2,0,0,0,1,0,0],[101,67,25,5,10,0,2,0,4,14,25,2,0,0,0,1,0,0],[67,68,25,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[68,70,25,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[70,71,0,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[71,73,51,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[73,74,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[74,76,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[76,77,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[77,79,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[79,80,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[80,81,51,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[81,82,51,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[82,86,51,5,10,0,2,0,6,14,25,2,0,0,0,1,0,0],[86,87,3,5,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[87,90,3,3,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[90,91,25,3,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[91,92,25,3,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[92,93,250,3,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[93,94,253,3,10,0,2,0,0,14,25,2,0,0,0,1,0,0],[94,95,253,3,10,0,2,0,0,14,253,2,0,0,0,1,0,0],[95,97,253,3,10,0,2,0,0,14,253,3,0,0,0,1,0,0],[97,98,253,3,10,0,2,0,6,14,253,3,0,0,0,1,0,0],[98,100,253,3,10,0,2,0,6,14,253,3,0,0,0,1,0,0],[100,101,253,3,10,0,3,0,4,14,253,3,0,0,0,1,0,0],[101,67,253,3,10,0,3,0,4,14,253,3,0,0,0,1,0,0],[67,68,253,3,10,0,3,0,6,14,253,3,0,0,0,1,0,0],[68,70,253,3,10,0,3,0,6,14,253,3,0,0,0,1,0,0],[70,71,0,3,10,0,3,0,6,14,253,3,0,0,0,1,0,0],[71,73,46,3,10,0,3,0,6,14,253,3,0,0,0,1,0,0],[73,74,46,3,10,0,3,0,0,14,253,3,0,0,0,1,0,0],[74,76,46,3,10,0,3,0,0,14,253,3,0,0,0,1,0,0],[76,77,46,3,10,0,3,0,1,14,253,3,0,0,0,1,0,0],[77,107,46,3,10,0,3,0,1,14,253,3,0,0,0,1,0,0],[107,108,46,3,10,0,3,0,0,14,253,3,0,0,0,1,0,0],[108,110,46,3,10,0,3,0,0,14,253,3,0,0,0,1,0,0],[110,174,46,3,10,0,3,0,0,14,253,3,0,0,2,1,0,0],[174,175,253,3,10,0,3,0,0,14,253,3,0,0,2,1,0,0],[175,176,253,3,10,0,3,0,0,14,253,3,0,0,2,1,0,0],[176,177,253,31,10,0,3,0,0,14,253,3,0,0,2,1,0,0],[177,178,8,31,10,5,3,0,0,14,253,3,0,0,2,1,0,0],[178,179,8,31,10,-10,3,0,6,14,253,3,0,0,2,1,0,0],[179,180,0,31,10,-10,3,0,6,14,253,3,0,0,2,1,0,0],[180,181,-10,31,10,-10,3,0,2,14,253,3,0,0,2,1,0,0],[181,182,-10,31,10,-10,3,0,2,14,253,3,0,-10,2,1,0,0],[182,112,-10,31,10,-10,3,0,2,14,253,3,0,-10,0,1,0,0],[112,113,-10,31,10,-10,3,0,0,14,253,3,1,-10,0,1,0,0],[113,114,-10,31,10,-10,3,0,6,14,253,3,1,-10,0,1,0,0],[114,116,-10,31,10,-10,3,0,6,14,253,3,1,-10,0,1,0,0],[116,117,-10,31,10,-10,3,0,6,14,0,3,1,-10,0,1,0,0],[117,118,-10,31,10,-10,3,0,6,14,0,0,1,-10,0,1,0,0],[118,119,-10,31,10,-10,4,0,4,14,0,0,1,-10,0,1,0,0],[119,67,-10,31,10,-10,4,0,4,14,0,0,1,-10,0,1,0,0],[67,68,-10,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[68,70,-10,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[70,71,0,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[71,73,50,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[73,74,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[74,76,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[76,77,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[77,79,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[79,80,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[80,81,50,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[81,82,50,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[82,86,50,31,10,-10,4,0,6,14,0,0,1,-10,0,1,0,0],[86,87,2,31,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[87,90,2,2,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[90,91,0,2,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[91,92,0,2,10,-10,4,0,0,14,0,0,1,-10,0,1,0,0],[92,93,0,2,10,0,4,0,0,14,0,0,1,-10,0,1,0,0],[93,94,2,2,10,0,4,0,0,14,0,0,1,-10,0,1,0,0],[94,95,2,2,10,0,4,0,0,14,2,0,1,-10,0,1,0,0],[95,97,2,2,10,0,4,0,0,14,2,1,1,-10,0,1,0,0],[97,98,2,2,10,0,4,0,6,14,2,1,1,-10,0,1,0,0],[98,100,2,2,10,0,4,0,6,14,2,1,1,-10,0,1,0,0],[100,101,2,2,10,0,5,0,4,14,2,1,1,-10,0,1,0,0],[101,67,2,2,10,0,5,0,4,14,2,1,1,-10,0,1,0,0],[67,68,2,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[68,70,2,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[70,71,0,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[71,73,53,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[73,74,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[74,76,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[76,77,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[77,79,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[79,80,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[80,81,53,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[81,82,53,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[82,86,53,2,10,0,5,0,6,14,2,1,1,-10,0,1,0,0],[86,87,5,2,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[87,90,5,5,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[90,91,2,5,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[91,92,2,5,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[92,93,20,5,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[93,94,25,5,10,0,5,0,0,14,2,1,1,-10,0,1,0,0],[94,95,25,5,10,0,5,0,0,14,25,1,1,-10,0,1,0,0],[95,97,25,5,10,0,5,0,0,14,25,2,1,-10,0,1,0,0],[97,98,25,5,10,0,5,0,6,14,25,2,1,-10,0,1,0,0],[98,100,25,5,10,0,5,0,6,14,25,2,1,-10,0,1,0,0],[100,101,25,5,10,0,6,0,4,14,25,2,1,-10,0,1,0,0],[101,67,25,5,10,0,6,0,4,14,25,2,1,-10,0,1,0,0],[67,68,25,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[68,70,25,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[70,71,0,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[71,73,52,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[73,74,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[74,76,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[76,77,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[77,79,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[79,80,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[80,81,52,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[81,82,52,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[82,86,52,5,10,0,6,0,6,14,25,2,1,-10,0,1,0,0],[86,87,4,5,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[87,90,4,4,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[90,91,25,4,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[91,92,25,4,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[92,93,250,4,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[93,94,254,4,10,0,6,0,0,14,25,2,1,-10,0,1,0,0],[94,95,254,4,10,0,6,0,0,14,254,2,1,-10,0,1,0,0],[95,97,254,4,10,0,6,0,0,14,254,3,1,-10,0,1,0,0],[97,98,254,4,10,0,6,0,6,14,254,3,1,-10,0,1,0,0],[98,100,254,4,10,0,6,0,6,14,254,3,1,-10,0,1,0,0],[100,101,254,4,10,0,7,0,4,14,254,3,1,-10,0,1,0,0],[101,67,254,4,10,0,7,0,4,14,254,3,1,-10,0,1,0,0],[67,68,254,4,10,0,7,0,6,14,254,3,1,-10,0,1,0,0],[68,70,254,4,10,0,7,0,6,14,254,3,1,-10,0,1,0,0],[70,71,0,4,10,0,7,0,6,14,254,3,1,-10,0,1,0,0],[71,73,46,4,10,0,7,0,6,14,254,3,1,-10,0,1,0,0],[73,74,46,4,10,0,7,0,0,14,254,3,1,-10,0,1,0,0],[74,76,46,4,10,0,7,0,0,14,254,3,1,-10,0,1,0,0],[76,77,46,4,10,0,7,0,1,14,254,3,1,-10,0,1,0,0],[77,107,46,4,10,0,7,0,1,14,254,3,1,-10,0,1,0,0],[107,108,46,4,10,0,7,0,0,14,254,3,1,-10,0,1,0,0],[108,110,46,4,10,0,7,0,0,14,254,3,1,-10,0,1,0,0],[110,174,46,4,10,0,7,0,0,14,254,3,1,-10,2,1,0,0],[174,175,254,4,10,0,7,0,0,14,254,3,1,-10,2,1,0,0],[175,176,254,4,10,0,7,0,0,14,254,3,1,-10,2,1,0,0],[176,177,254,31,10,0,7,0,0,14,254,3,1,-10,2,1,0,0],[177,178,8,31,10,6,7,0,0,14,254,3,1,-10,2,1,0,0],[178,179,8,31,10,-9,7,0,6,14,254,3,1,-10,2,1,0,0],[179,180,-10,31,10,-9,7,0,6,14,254,3,1,-10,2,1,0,0],[180,181,-19,31,10,-9,7,0,6,14,254,3,1,-10,2,1,0,0],[181,182,-19,31,10,-9,7,0,6,14,254,3,1,-19,2,1,0,0],[182,112,-19,31,10,-9,7,0,6,14,254,3,1,-19,0,1,0,0],[112,113,-19,31,10,-9,7,0,4,14,254,3,2,-19,0,1,0,0],[113,114,-19,31,10,-9,7,0,6,14,254,3,2,-19,0,1,0,0],[114,116,-19,31,10,-9,7,0,6,14,254,3,2,-19,0,1,0,0],[116,117,-19,31,10,-9,7,0,6,14,0,3,2,-19,0,1,0,0],[117,118,-19,31,10,-9,7,0,6,14,0,0,2,-19,0,1,0,0],[118,119,-19,31,10,-9,8,0,4,14,0,0,2,-19,0,1,0,0],[119,67,-19,31,10,-9,8,0,4,14,0,0,2,-19,0,1,0,0],[67,68,-19,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[68,70,-19,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[70,71,0,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[71,73,50,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[73,74,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[74,76,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[76,77,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[77,79,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[79,80,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[80,81,50,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[81,82,50,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[82,86,50,31,10,-9,8,0,6,14,0,0,2,-19,0,1,0,0],[86,87,2,31,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[87,90,2,2,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[90,91,0,2,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[91,92,0,2,10,-9,8,0,0,14,0,0,2,-19,0,1,0,0],[92,93,0,2,10,0,8,0,0,14,0,0,2,-19,0,1,0,0],[93,94,2,2,10,0,8,0,0,14,0,0,2,-19,0,1,0,0],[94,95,2,2,10,0,8,0,0,14,2,0,2,-19,0,1,0,0],[95,97,2,2,10,0,8,0,0,14,2,1,2,-19,0,1,0,0],[97,98,2,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[98,100,2,2,10,0,8,0,6,14,2,1,2,-19,0,1,0,0],[100,101,2,2,10,0,9,0,4,14,2,1,2,-19,0,1,0,0],[101,67,2,2,10,0,9,0,4,14,2,1,2,-19,0,1,0,0],[67,68,2,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[68,70,2,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[70,71,0,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[71,73,53,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[73,74,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[74,76,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[76,77,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[77,79,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[79,80,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[80,81,53,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[81,82,53,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[82,86,53,2,10,0,9,0,6,14,2,1,2,-19,0,1,0,0],[86,87,5,2,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[87,90,5,5,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[90,91,2,5,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[91,92,2,5,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[92,93,20,5,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[93,94,25,5,10,0,9,0,0,14,2,1,2,-19,0,1,0,0],[94,95,25,5,10,0,9,0,0,14,25,1,2,-19,0,1,0,0],[95,97,25,5,10,0,9,0,0,14,25,2,2,-19,0,1,0,0],[97,98,25,5,10,0,9,0,6,14,25,2,2,-19,0,1,0,0],[98,100,25,5,10,0,9,0,6,14,25,2,2,-19,0,1,0,0],[100,101,25,5,10,0,10,0,4,14,25,2,2,-19,0,1,0,0],[101,67,25,5,10,0,10,0,4,14,25,2,2,-19,0,1,0,0],[67,68,25,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[68,70,25,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[70,71,0,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[71,73,54,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[73,74,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[74,76,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[76,77,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[77,79,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[79,80,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[80,81,54,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[81,82,54,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[82,86,54,5,10,0,10,0,6,14,25,2,2,-19,0,1,0,0],[86,87,6,5,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[87,90,6,6,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[90,91,25,6,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[91,92,25,6,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[92,93,250,6,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[93,94,256,6,10,0,10,0,0,14,25,2,2,-19,0,1,0,0],[94,95,256,6,10,0,10,0,0,14,256,2,2,-19,0,1,0,0],[95,97,256,6,10,0,10,0,0,14,256,3,2,-19,0,1,0,0],[97,98,256,6,10,0,10,0,0,14,256,3,2,-19,0,1,0,0],[98,148,256,6,10,0,10,0,0,14,256,3,2,-19,0,1,0,0],[148,149,256,6,4202533,0,10,0,0,14,256,3,2,-19,0,1,0,0],[149,150,256,6,4202533,19,10,0,0,14,256,3,2,-19,0,1,0,0],[150,165,256,6,4202533,19,10,0,0,14,256,3,2,-19,3,1,0,0],[165,166,4,6,4202533,19,10,0,0,14,256,3,2,-19,3,1,0,0],[166,167,4,1,4202533,19,10,0,0,14,256,3,2,-19,3,1,0,0],[167,168,19,1,4202533,19,10,0,0,14,256,3,2,-19,3,2,0,0],[168,153,19,1,4202533,19,10,0,0,14,256,3,2,-19,0,2,0,0],[153,154,1,1,4202533,19,10,0,0,14,256,3,2,-19,0,2,0,0],[154,155,1,0,4202533,19,10,0,0,14,256,3,2,-19,0,2,0,0],[155,null,1,0,4202533,19,10,0,0,14,256,3,2,-19,0,2,0,1]],"stacks":[[],[{"ret":54}],[{"ret":112}],[{"ret":153}]],"outs":["","Enter an IP address: ","Enter an IP address: Illegal IP address\n"],"outBufs":[""]},{"label":"20.21.22.23\u2423\u2423","sub":"Example 9 \u00b7 trailing spaces","input":"20.21.22.23  \n","buffer":"20.21.22.23  \n","readStep":12,"steps":[[null,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[50,51,0,0,4202496,0,0,0,0,0,0,0,0,0,0,0,0,0],[51,52,0,0,4202496,21,0,0,0,0,0,0,0,0,0,0,0,0],[52,165,0,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[165,166,4,0,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[166,167,4,1,4202496,21,0,0,0,0,0,0,0,0,1,0,0,0],[167,168,21,1,4202496,21,0,0,0,0,0,0,0,0,1,1,0,0],[168,54,21,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[54,55,3,1,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[55,56,3,0,4202496,21,0,0,0,0,0,0,0,0,0,1,0,0],[56,57,3,0,4202596,21,0,0,0,0,0,0,0,0,0,1,0,0],[57,58,3,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[58,59,14,0,4202596,256,0,0,0,0,0,0,0,0,0,1,0,0],[59,61,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[61,67,14,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[67,68,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[68,70,14,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[70,71,0,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[71,73,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[73,74,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[74,76,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[76,77,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[77,79,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[79,80,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[80,81,50,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[81,82,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[82,86,50,0,4202596,256,0,0,6,14,0,0,0,0,0,1,0,0],[86,87,2,0,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[87,90,2,2,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[90,91,0,2,4202596,256,0,0,0,14,0,0,0,0,0,1,0,0],[91,92,0,2,10,256,0,0,0,14,0,0,0,0,0,1,0,0],[92,93,0,2,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[93,94,2,2,10,0,0,0,0,14,0,0,0,0,0,1,0,0],[94,95,2,2,10,0,0,0,0,14,2,0,0,0,0,1,0,0],[95,97,2,2,10,0,0,0,0,14,2,1,0,0,0,1,0,0],[97,98,2,2,10,0,0,0,6,14,2,1,0,0,0,1,0,0],[98,100,2,2,10,0,0,0,6,14,2,1,0,0,0,1,0,0],[100,101,2,2,10,0,1,0,4,14,2,1,0,0,0,1,0,0],[101,67,2,2,10,0,1,0,4,14,2,1,0,0,0,1,0,0],[67,68,2,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[68,70,2,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[70,71,0,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[71,73,48,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[73,74,48,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[74,76,48,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[76,77,48,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[77,79,48,2,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[79,80,48,2,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[80,81,48,2,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[81,82,48,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[82,86,48,2,10,0,1,0,6,14,2,1,0,0,0,1,0,0],[86,87,0,2,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[87,90,0,0,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[90,91,2,0,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[91,92,2,0,10,0,1,0,1,14,2,1,0,0,0,1,0,0],[92,93,20,0,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[93,94,20,0,10,0,1,0,0,14,2,1,0,0,0,1,0,0],[94,95,20,0,10,0,1,0,0,14,20,1,0,0,0,1,0,0],[95,97,20,0,10,0,1,0,0,14,20,2,0,0,0,1,0,0],[97,98,20,0,10,0,1,0,6,14,20,2,0,0,0,1,0,0],[98,100,20,0,10,0,1,0,6,14,20,2,0,0,0,1,0,0],[100,101,20,0,10,0,2,0,4,14,20,2,0,0,0,1,0,0],[101,67,20,0,10,0,2,0,4,14,20,2,0,0,0,1,0,0],[67,68,20,0,10,0,2,0,6,14,20,2,0,0,0,1,0,0],[68,70,20,0,10,0,2,0,6,14,20,2,0,0,0,1,0,0],[70,71,0,0,10,0,2,0,6,14,20,2,0,0,0,1,0,0],[71,73,46,0,10,0,2,0,6,14,20,2,0,0,0,1,0,0],[73,74,46,0,10,0,2,0,0,14,20,2,0,0,0,1,0,0],[74,76,46,0,10,0,2,0,0,14,20,2,0,0,0,1,0,0],[76,77,46,0,10,0,2,0,1,14,20,2,0,0,0,1,0,0],[77,107,46,0,10,0,2,0,1,14,20,2,0,0,0,1,0,0],[107,108,46,0,10,0,2,0,0,14,20,2,0,0,0,1,0,0],[108,110,46,0,10,0,2,0,0,14,20,2,0,0,0,1,0,0],[110,174,46,0,10,0,2,0,0,14,20,2,0,0,2,1,0,0],[174,175,20,0,10,0,2,0,0,14,20,2,0,0,2,1,0,0],[175,176,20,0,10,0,2,0,0,14,20,2,0,0,2,1,0,0],[176,177,20,31,10,0,2,0,0,14,20,2,0,0,2,1,0,0],[177,178,0,31,10,20,2,0,0,14,20,2,0,0,2,1,0,0],[178,179,0,31,10,5,2,0,0,14,20,2,0,0,2,1,0,0],[179,180,0,31,10,5,2,0,0,14,20,2,0,0,2,1,0,0],[180,181,5,31,10,5,2,0,0,14,20,2,0,0,2,1,0,0],[181,182,5,31,10,5,2,0,0,14,20,2,0,5,2,1,0,0],[182,112,5,31,10,5,2,0,0,14,20,2,0,5,0,1,0,0],[112,113,5,31,10,5,2,0,0,14,20,2,1,5,0,1,0,0],[113,114,5,31,10,5,2,0,6,14,20,2,1,5,0,1,0,0],[114,116,5,31,10,5,2,0,6,14,20,2,1,5,0,1,0,0],[116,117,5,31,10,5,2,0,6,14,0,2,1,5,0,1,0,0],[117,118,5,31,10,5,2,0,6,14,0,0,1,5,0,1,0,0],[118,119,5,31,10,5,3,0,4,14,0,0,1,5,0,1,0,0],[119,67,5,31,10,5,3,0,4,14,0,0,1,5,0,1,0,0],[67,68,5,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[68,70,5,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[70,71,0,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[71,73,50,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[73,74,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[74,76,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[76,77,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[77,79,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[79,80,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[80,81,50,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[81,82,50,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[82,86,50,31,10,5,3,0,6,14,0,0,1,5,0,1,0,0],[86,87,2,31,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[87,90,2,2,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[90,91,0,2,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[91,92,0,2,10,5,3,0,0,14,0,0,1,5,0,1,0,0],[92,93,0,2,10,0,3,0,0,14,0,0,1,5,0,1,0,0],[93,94,2,2,10,0,3,0,0,14,0,0,1,5,0,1,0,0],[94,95,2,2,10,0,3,0,0,14,2,0,1,5,0,1,0,0],[95,97,2,2,10,0,3,0,0,14,2,1,1,5,0,1,0,0],[97,98,2,2,10,0,3,0,6,14,2,1,1,5,0,1,0,0],[98,100,2,2,10,0,3,0,6,14,2,1,1,5,0,1,0,0],[100,101,2,2,10,0,4,0,4,14,2,1,1,5,0,1,0,0],[101,67,2,2,10,0,4,0,4,14,2,1,1,5,0,1,0,0],[67,68,2,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[68,70,2,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[70,71,0,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[71,73,49,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[73,74,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[74,76,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[76,77,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[77,79,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[79,80,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[80,81,49,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[81,82,49,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[82,86,49,2,10,0,4,0,6,14,2,1,1,5,0,1,0,0],[86,87,1,2,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[87,90,1,1,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[90,91,2,1,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[91,92,2,1,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[92,93,20,1,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[93,94,21,1,10,0,4,0,0,14,2,1,1,5,0,1,0,0],[94,95,21,1,10,0,4,0,0,14,21,1,1,5,0,1,0,0],[95,97,21,1,10,0,4,0,0,14,21,2,1,5,0,1,0,0],[97,98,21,1,10,0,4,0,6,14,21,2,1,5,0,1,0,0],[98,100,21,1,10,0,4,0,6,14,21,2,1,5,0,1,0,0],[100,101,21,1,10,0,5,0,4,14,21,2,1,5,0,1,0,0],[101,67,21,1,10,0,5,0,4,14,21,2,1,5,0,1,0,0],[67,68,21,1,10,0,5,0,6,14,21,2,1,5,0,1,0,0],[68,70,21,1,10,0,5,0,6,14,21,2,1,5,0,1,0,0],[70,71,0,1,10,0,5,0,6,14,21,2,1,5,0,1,0,0],[71,73,46,1,10,0,5,0,6,14,21,2,1,5,0,1,0,0],[73,74,46,1,10,0,5,0,0,14,21,2,1,5,0,1,0,0],[74,76,46,1,10,0,5,0,0,14,21,2,1,5,0,1,0,0],[76,77,46,1,10,0,5,0,1,14,21,2,1,5,0,1,0,0],[77,107,46,1,10,0,5,0,1,14,21,2,1,5,0,1,0,0],[107,108,46,1,10,0,5,0,0,14,21,2,1,5,0,1,0,0],[108,110,46,1,10,0,5,0,0,14,21,2,1,5,0,1,0,0],[110,174,46,1,10,0,5,0,0,14,21,2,1,5,2,1,0,0],[174,175,21,1,10,0,5,0,0,14,21,2,1,5,2,1,0,0],[175,176,21,1,10,0,5,0,0,14,21,2,1,5,2,1,0,0],[176,177,21,31,10,0,5,0,0,14,21,2,1,5,2,1,0,0],[177,178,0,31,10,21,5,0,0,14,21,2,1,5,2,1,0,0],[178,179,0,31,10,6,5,0,0,14,21,2,1,5,2,1,0,0],[179,180,5,31,10,6,5,0,0,14,21,2,1,5,2,1,0,0],[180,181,11,31,10,6,5,0,0,14,21,2,1,5,2,1,0,0],[181,182,11,31,10,6,5,0,0,14,21,2,1,11,2,1,0,0],[182,112,11,31,10,6,5,0,0,14,21,2,1,11,0,1,0,0],[112,113,11,31,10,6,5,0,0,14,21,2,2,11,0,1,0,0],[113,114,11,31,10,6,5,0,6,14,21,2,2,11,0,1,0,0],[114,116,11,31,10,6,5,0,6,14,21,2,2,11,0,1,0,0],[116,117,11,31,10,6,5,0,6,14,0,2,2,11,0,1,0,0],[117,118,11,31,10,6,5,0,6,14,0,0,2,11,0,1,0,0],[118,119,11,31,10,6,6,0,4,14,0,0,2,11,0,1,0,0],[119,67,11,31,10,6,6,0,4,14,0,0,2,11,0,1,0,0],[67,68,11,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[68,70,11,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[70,71,0,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[71,73,50,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[73,74,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[74,76,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[76,77,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[77,79,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[79,80,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[80,81,50,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[81,82,50,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[82,86,50,31,10,6,6,0,6,14,0,0,2,11,0,1,0,0],[86,87,2,31,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[87,90,2,2,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[90,91,0,2,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[91,92,0,2,10,6,6,0,0,14,0,0,2,11,0,1,0,0],[92,93,0,2,10,0,6,0,0,14,0,0,2,11,0,1,0,0],[93,94,2,2,10,0,6,0,0,14,0,0,2,11,0,1,0,0],[94,95,2,2,10,0,6,0,0,14,2,0,2,11,0,1,0,0],[95,97,2,2,10,0,6,0,0,14,2,1,2,11,0,1,0,0],[97,98,2,2,10,0,6,0,6,14,2,1,2,11,0,1,0,0],[98,100,2,2,10,0,6,0,6,14,2,1,2,11,0,1,0,0],[100,101,2,2,10,0,7,0,4,14,2,1,2,11,0,1,0,0],[101,67,2,2,10,0,7,0,4,14,2,1,2,11,0,1,0,0],[67,68,2,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[68,70,2,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[70,71,0,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[71,73,50,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[73,74,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[74,76,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[76,77,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[77,79,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[79,80,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[80,81,50,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[81,82,50,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[82,86,50,2,10,0,7,0,6,14,2,1,2,11,0,1,0,0],[86,87,2,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[87,90,2,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[90,91,2,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[91,92,2,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[92,93,20,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[93,94,22,2,10,0,7,0,0,14,2,1,2,11,0,1,0,0],[94,95,22,2,10,0,7,0,0,14,22,1,2,11,0,1,0,0],[95,97,22,2,10,0,7,0,0,14,22,2,2,11,0,1,0,0],[97,98,22,2,10,0,7,0,6,14,22,2,2,11,0,1,0,0],[98,100,22,2,10,0,7,0,6,14,22,2,2,11,0,1,0,0],[100,101,22,2,10,0,8,0,4,14,22,2,2,11,0,1,0,0],[101,67,22,2,10,0,8,0,4,14,22,2,2,11,0,1,0,0],[67,68,22,2,10,0,8,0,6,14,22,2,2,11,0,1,0,0],[68,70,22,2,10,0,8,0,6,14,22,2,2,11,0,1,0,0],[70,71,0,2,10,0,8,0,6,14,22,2,2,11,0,1,0,0],[71,73,46,2,10,0,8,0,6,14,22,2,2,11,0,1,0,0],[73,74,46,2,10,0,8,0,0,14,22,2,2,11,0,1,0,0],[74,76,46,2,10,0,8,0,0,14,22,2,2,11,0,1,0,0],[76,77,46,2,10,0,8,0,1,14,22,2,2,11,0,1,0,0],[77,107,46,2,10,0,8,0,1,14,22,2,2,11,0,1,0,0],[107,108,46,2,10,0,8,0,0,14,22,2,2,11,0,1,0,0],[108,110,46,2,10,0,8,0,0,14,22,2,2,11,0,1,0,0],[110,174,46,2,10,0,8,0,0,14,22,2,2,11,2,1,0,0],[174,175,22,2,10,0,8,0,0,14,22,2,2,11,2,1,0,0],[175,176,22,2,10,0,8,0,0,14,22,2,2,11,2,1,0,0],[176,177,22,31,10,0,8,0,0,14,22,2,2,11,2,1,0,0],[177,178,0,31,10,22,8,0,0,14,22,2,2,11,2,1,0,0],[178,179,0,31,10,7,8,0,0,14,22,2,2,11,2,1,0,0],[179,180,11,31,10,7,8,0,0,14,22,2,2,11,2,1,0,0],[180,181,18,31,10,7,8,0,0,14,22,2,2,11,2,1,0,0],[181,182,18,31,10,7,8,0,0,14,22,2,2,18,2,1,0,0],[182,112,18,31,10,7,8,0,0,14,22,2,2,18,0,1,0,0],[112,113,18,31,10,7,8,0,0,14,22,2,3,18,0,1,0,0],[113,114,18,31,10,7,8,0,1,14,22,2,3,18,0,1,0,0],[114,116,18,31,10,7,8,0,1,14,22,2,3,18,0,1,0,0],[116,117,18,31,10,7,8,0,1,14,0,2,3,18,0,1,0,0],[117,118,18,31,10,7,8,0,1,14,0,0,3,18,0,1,0,0],[118,119,18,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[119,67,18,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[67,68,18,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[68,70,18,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[70,71,0,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[71,73,50,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[73,74,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[74,76,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[76,77,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[77,79,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[79,80,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[80,81,50,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[81,82,50,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[82,86,50,31,10,7,9,0,6,14,0,0,3,18,0,1,0,0],[86,87,2,31,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[87,90,2,2,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[90,91,0,2,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[91,92,0,2,10,7,9,0,0,14,0,0,3,18,0,1,0,0],[92,93,0,2,10,0,9,0,0,14,0,0,3,18,0,1,0,0],[93,94,2,2,10,0,9,0,0,14,0,0,3,18,0,1,0,0],[94,95,2,2,10,0,9,0,0,14,2,0,3,18,0,1,0,0],[95,97,2,2,10,0,9,0,0,14,2,1,3,18,0,1,0,0],[97,98,2,2,10,0,9,0,6,14,2,1,3,18,0,1,0,0],[98,100,2,2,10,0,9,0,6,14,2,1,3,18,0,1,0,0],[100,101,2,2,10,0,10,0,4,14,2,1,3,18,0,1,0,0],[101,67,2,2,10,0,10,0,4,14,2,1,3,18,0,1,0,0],[67,68,2,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[68,70,2,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[70,71,0,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[71,73,51,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[73,74,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[74,76,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[76,77,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[77,79,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[79,80,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[80,81,51,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[81,82,51,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[82,86,51,2,10,0,10,0,6,14,2,1,3,18,0,1,0,0],[86,87,3,2,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[87,90,3,3,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[90,91,2,3,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[91,92,2,3,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[92,93,20,3,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[93,94,23,3,10,0,10,0,0,14,2,1,3,18,0,1,0,0],[94,95,23,3,10,0,10,0,0,14,23,1,3,18,0,1,0,0],[95,97,23,3,10,0,10,0,0,14,23,2,3,18,0,1,0,0],[97,98,23,3,10,0,10,0,6,14,23,2,3,18,0,1,0,0],[98,100,23,3,10,0,10,0,6,14,23,2,3,18,0,1,0,0],[100,101,23,3,10,0,11,0,4,14,23,2,3,18,0,1,0,0],[101,67,23,3,10,0,11,0,4,14,23,2,3,18,0,1,0,0],[67,68,23,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[68,70,23,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[70,71,0,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[71,73,32,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[73,74,32,3,10,0,11,0,0,14,23,2,3,18,0,1,0,0],[74,76,32,3,10,0,11,0,0,14,23,2,3,18,0,1,0,0],[76,77,32,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[77,79,32,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[79,80,32,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[80,148,32,3,10,0,11,0,6,14,23,2,3,18,0,1,0,0],[148,149,32,3,4202533,0,11,0,6,14,23,2,3,18,0,1,0,0],[149,150,32,3,4202533,19,11,0,6,14,23,2,3,18,0,1,0,0],[150,165,32,3,4202533,19,11,0,6,14,23,2,3,18,3,1,0,0],[165,166,4,3,4202533,19,11,0,6,14,23,2,3,18,3,1,0,0],[166,167,4,1,4202533,19,11,0,6,14,23,2,3,18,3,1,0,0],[167,168,19,1,4202533,19,11,0,6,14,23,2,3,18,3,2,0,0],[168,153,19,1,4202533,19,11,0,6,14,23,2,3,18,0,2,0,0],[153,154,1,1,4202533,19,11,0,6,14,23,2,3,18,0,2,0,0],[154,155,1,0,4202533,19,11,0,6,14,23,2,3,18,0,2,0,0],[155,null,1,0,4202533,19,11,0,6,14,23,2,3,18,0,2,0,1]],"stacks":[[],[{"ret":54}],[{"ret":112}],[{"ret":153}]],"outs":["","Enter an IP address: ","Enter an IP address: Illegal IP address\n"],"outBufs":[""]}]};
+
+const SECTIONS = [
+  { id: "s-header", from: 1, to: 22, title: "The header comment", collapsed: true,
+    intro: "Lines 1–22 are all comments. Everything after a <code>;</code> is ignored by NASM, so these lines are notes for people: who wrote it, what it does and how to build it." },
+  { id: "s-data", from: 23, to: 37, title: "Data: what memory starts with",
+    intro: "Nothing here runs. This is what memory looks like when the program starts: the messages it prints and the five variables it keeps track of." },
+  { id: "s-bss", from: 38, to: 41, title: "Empty space for later",
+    intro: "Space the program needs but doesn't fill in ahead of time." },
+  { id: "s-text", from: 42, to: 46, title: "The code starts here",
+    intro: "Everything from here down is instructions, the part the CPU actually runs." },
+  { id: "s-step1", from: 47, to: 61, title: "Step 1: print the prompt and read the input",
+    intro: "Print “Enter an IP address: ”, then wait while the user types. This is the “Reading and Printing a String” slide almost line for line." },
+  { id: "s-step2", from: 62, to: 101, title: "Step 2: look at each character",
+    intro: "The heart of the program: a loop that looks at one character per trip. Each character is either the end of the input, a dot, a digit, or something illegal." },
+  { id: "s-step3", from: 102, to: 119, title: "Step 3: a dot ends a number",
+    intro: "When the loop finds a dot, the number before it is complete." },
+  { id: "s-step4", from: 120, to: 130, title: "Step 4: the input is over",
+    intro: "Check that the address was complete, then add the last number." },
+  { id: "s-step5", from: 131, to: 155, title: "Step 5: print the result and exit",
+    intro: "Print the checksum, or jump to <code>badAddress</code> and print “Illegal IP address”. Both paths end at <code>exitProgram</code>." },
+  { id: "s-printString", from: 156, to: 168, title: "Function: printString",
+    intro: "The functions sit below the exit, so they only run when something <code>call</code>s them." },
+  { id: "s-addToChecksum", from: 169, to: 182, title: "Function: addToChecksum",
+    intro: "The checksum math for one number: total = total + (num % 31) − 15." },
+  { id: "s-printNumber", from: 183, to: 228, title: "Function: printNumber",
+    intro: "There's no “print a number” system call, because write only prints characters. This function turns the number into characters itself." },
+];
+
+const EXPL = {
+  24: "Starts the data section: values that are already in memory when the program starts.",
+  25: "Puts the 21 characters of the prompt into memory, one byte each. <code>db</code> means “define bytes”. The label <code>prompt</code> is the address of the first byte, the E.",
+  26: "The 16 characters printed before the answer. The space at the end keeps the number from touching “is”.",
+  27: "18 characters plus <code>0xA</code>, the newline character, so the cursor moves to the next line afterward. That's 19 bytes in total.",
+  28: "One <code>-</code> character, printed in front of negative checksums.",
+  29: "One newline byte (<code>0xA</code> = 10), printed after the checksum.",
+  33: "<code>dq</code> means “define quadword”: 8 bytes (64 bits), starting at 0. It will hold how many characters the user typed. Variables are 8 bytes so they match 64-bit registers like RAX.",
+  34: "The number currently being built from digits. While reading 191 it goes 1 → 19 → 191.",
+  35: "How many digits the current number has. A count of 0 catches empty numbers, like the middle of <code>1..2.3</code>.",
+  36: "How many dots so far. It must be exactly 3 at the end.",
+  37: "The running checksum. It starts at 0 and can go negative.",
+  39: "The bss section holds space that isn't filled in ahead of time.",
+  40: "Reserves 256 empty bytes. The read system call drops what the user typed in here, one character per byte.",
+  41: "32 empty bytes where the checksum's digits are built as characters before they're printed.",
+  43: "The text section holds the instructions.",
+  44: "Lets the linker (<code>ld</code>) see the label <code>_start</code>, so it knows where the program begins.",
+  46: "The program starts running here. From here it goes down one line at a time, unless a jump or call sends it somewhere else.",
+  50: "Copies the <em>address</em> of the prompt text (not the text itself) into RCX. The printString function expects the address in RCX.",
+  51: "Puts 21 in RDX: how many characters to print. If you changed the prompt, this number would have to change too.",
+  52: "Jumps to the printString function at the bottom, which prints RDX characters starting at RCX. <code>call</code> also saves this spot on the stack, so <code>ret</code> can come back here.",
+  54: "Starts setting up a read. RAX says which system call we want: 3 means read.",
+  55: "RBX = 0 means read from standard input: the keyboard, or the STDIN box on OneCompiler.",
+  56: "RCX = the address of <code>buffer</code>, where Linux should put the characters.",
+  57: "RDX = the most characters to read, so Linux can't overflow the 256-byte buffer.",
+  58: "Hands control to Linux to do the read. The program waits here until the user presses Enter. Linux then puts the characters in <code>buffer</code> and the count in RAX. For <code>68.191.206.51</code> plus Enter, the count is 14.",
+  59: "Saves the count in the <code>length</code> variable. The brackets mean “the memory at length”. It's saved because RAX is about to be reused.",
+  61: "RSI will be the position (index) of the character being checked. 0 is the first character, like <code>i = 0</code> before a loop.",
+  66: "The top of the loop. Each trip through checks one character: <code>buffer[rsi]</code>.",
+  67: "Compares the position with the number of characters. <code>cmp</code> works out rsi − length only to set the flags. It doesn't change either value.",
+  68: "Jump if Greater or Equal: if rsi ≥ length, every character has been checked, so go to <code>endOfInput</code>. Otherwise, carry on to the next line.",
+  70: "Sets all 64 bits of RAX to 0. The next line only fills the lowest 8 bits, and any leftover bits above them would make RAX the wrong number.",
+  71: "Copies one byte, the character at position rsi in <code>buffer</code>, into AL (the lowest byte of RAX). For the first character of 68.191.206.51, AL becomes 54, the code for <code>'6'</code>.",
+  73: "Is this character the newline (10) from pressing Enter?",
+  74: "Jump if Equal: if it was the newline, the input is over.",
+  76: "Is it a dot? NASM turns <code>'.'</code> into its ASCII code, 46.",
+  77: "If it's a dot, go to <code>gotDot</code> to finish the current number.",
+  79: "Compares the character with <code>'0'</code> (48)…",
+  80: "Jump if Less: anything below <code>'0'</code> in the ASCII table (a space, <code>/</code>, <code>-</code>…) isn't a digit, so the address is illegal.",
+  81: "Compares the character with <code>'9'</code> (57)…",
+  82: "Jump if Greater: anything above <code>'9'</code> (letters, <code>:</code>…) isn't a digit either. Past this line, the character must be a digit from 0 to 9.",
+  86: "Turns the character into its value: <code>'6'</code> (54) − <code>'0'</code> (48) = 6.",
+  87: "Saves the digit's value in RBX, because RAX is about to be used for multiplying.",
+  90: "Loads the number built so far. Before the first digit it's 0.",
+  91: "<code>mul</code> can't multiply by a plain number, so 10 goes into a register first.",
+  92: "RAX = RAX × 10. This moves the number one decimal place left: 6 becomes 60. <code>mul</code> also writes the high half of the answer into RDX, which is fine here.",
+  93: "Adds the new digit: 60 + 8 = 68. Together, lines 90–93 do number = number × 10 + digit.",
+  94: "Saves the updated number back to memory.",
+  95: "Adds 1 to the digit count. <code>qword</code> tells NASM the variable is 8 bytes. With no register in the instruction, NASM couldn't tell the size otherwise.",
+  97: "Is the number over 255? This is checked after every digit.",
+  98: "If so, it can't be part of an IP address: illegal. Because it checks after every digit, a giant number like 99999999 is caught at its third digit.",
+  100: "Moves to the next character (rsi = rsi + 1).",
+  101: "Always jumps back to the top of the loop.",
+  106: "The loop jumps here when the character is a dot.",
+  107: "Did the number before this dot have any digits?",
+  108: "If not (as in <code>.1.2.3</code> or <code>1..2.3</code>), it's illegal.",
+  110: "The number before the dot is finished, so add its (num % 31) − 15 to the total. See addToChecksum at the bottom.",
+  112: "Counts the dot.",
+  113: "More than 3 dots?",
+  114: "If so (as in <code>1.2.3.4.5</code>), it's illegal.",
+  116: "Resets <code>num</code> to 0 for the next number.",
+  117: "Resets the digit count too.",
+  118: "Moves past the dot.",
+  119: "Back to the loop for the next character.",
+  124: "The loop jumps here at the newline, or when it runs out of characters.",
+  125: "Does the last number have any digits?",
+  126: "If not (as in <code>1.2.3.</code>, or just pressing Enter), it's illegal.",
+  127: "Exactly 3 dots?",
+  128: "Jump if Not Equal: fewer than 3 dots (as in <code>1.2.3</code>) means fewer than 4 numbers, so it's illegal. More than 3 was already caught at the dots.",
+  130: "The 4th number ends at the newline instead of a dot, so it's added here.",
+  135: "The address of “The checksum is ”.",
+  136: "Its length: 16 characters.",
+  137: "Prints it.",
+  139: "Loads the checksum into RAX, where printNumber expects it.",
+  140: "Prints the number in decimal, with a <code>-</code> if it's negative.",
+  142: "The address of the newline character.",
+  143: "One character.",
+  144: "Prints it, so whatever comes next starts on a new line.",
+  145: "Skips over the <code>badAddress</code> code. Without this jump, the program would also print “Illegal IP address”.",
+  147: "Every “this is illegal” jump in the program lands here.",
+  148: "The address of “Illegal IP address” plus its newline.",
+  149: "19 characters, counting the newline.",
+  150: "Prints it. The program then just carries on to the next line, <code>exitProgram</code>.",
+  152: "Both paths, the checksum and the illegal message, end here.",
+  153: "System call 1 means exit.",
+  154: "An exit code of 0 means “finished normally”.",
+  155: "Linux ends the program. Nothing after this line ever runs on its own, which is why the functions can sit below it.",
+  164: "Prints RDX characters starting at the address in RCX. Whoever calls it sets RCX and RDX first.",
+  165: "System call 4 means write.",
+  166: "File 1 is standard output: the screen.",
+  167: "Linux prints the characters. RCX and RDX were already set by the caller.",
+  168: "Returns to the line right after whichever <code>call</code> came here.",
+  173: "Adds (num % 31) − 15 to the running total.",
+  174: "The number being divided goes in RAX. For 68, RAX = 68.",
+  175: "<code>div</code> divides the pair RDX:RAX, so RDX has to be 0 first, or the answer is wrong (or the program crashes).",
+  176: "<code>div</code> can't divide by a plain number, so 31 goes into RBX.",
+  177: "Divides by 31. The quotient goes in RAX (68 ÷ 31 = 2) and the remainder in RDX (6). The remainder is the <code>% 31</code>.",
+  178: "6 − 15 = −9. Negative numbers are stored in two's complement, so the hex column shows 0xFFFFFFFFFFFFFFF7.",
+  179: "Loads the running total.",
+  180: "Adds this number's part (−9) to it.",
+  181: "Saves the new total.",
+  182: "Goes back to wherever it was called from: <code>gotDot</code> or <code>endOfInput</code>.",
+  191: "Prints the number in RAX in decimal.",
+  192: "Is the number negative?",
+  193: "If it's 0 or more, skip the minus-sign part.",
+  195: "Saves the number on the stack, because printString is about to overwrite RAX with 4.",
+  196: "The address of the <code>-</code> character.",
+  197: "One character.",
+  198: "Prints the <code>-</code>.",
+  199: "Gets the saved number back off the stack.",
+  201: "Starts flipping the sign. <code>neg</code> wasn't on the course's allowed instruction list, so this does 0 − number instead.",
+  202: "RBX = 0 − RAX. For −9 that's 0 − (−9) = 9.",
+  203: "RAX now holds the positive version.",
+  205: "From here on, the number in RAX is 0 or positive.",
+  206: "Dividing by 10 pulls the digits off one at a time.",
+  207: "RDI counts how many digits have been pushed.",
+  208: "The top of the digit loop.",
+  209: "Clears RDX before every <code>div</code>, for the same reason as in addToChecksum.",
+  210: "RAX ÷ 10. The remainder (RDX) is the last digit and the quotient (RAX) is what's left. For 123: remainder 3, quotient 12.",
+  211: "Turns the digit into its character: 3 + 48 = 51, the code for <code>'3'</code>. It's the opposite of <code>sub al, '0'</code> in step 2.",
+  212: "Puts the character on the stack. The digits come out last-first (3, then 2, then 1), and the stack flips them back around.",
+  213: "One more digit.",
+  214: "Is anything left to divide?",
+  215: "If so, get the next digit. Because the loop always runs at least once, 0 still prints as “0”.",
+  217: "RSI is now the position in <code>outBuf</code> where the next character goes.",
+  218: "The top of the pop loop.",
+  219: "Takes the top value off the stack. The last thing pushed comes off first, so the first digit comes out first.",
+  220: "Stores that one character (AL, the low byte) in <code>outBuf</code> at position rsi.",
+  221: "Next position.",
+  222: "One fewer digit left on the stack. <code>dec</code> sets the zero flag (ZF) when RDI reaches 0.",
+  223: "Jump if Not Zero: keep going until RDI is 0. Now every push has its pop, which matters, because <code>ret</code> needs the return address back on top of the stack.",
+  225: "The address of the digits.",
+  226: "RSI ended up equal to the number of digits.",
+  227: "Prints them.",
+  228: "Goes back to step 5.",
+};
+
+const LABEL_LINES = { 46: "_start", 66: "nextChar", 106: "gotDot", 124: "endOfInput", 147: "badAddress", 152: "exitProgram",
+  164: "printString", 173: "addToChecksum", 191: "printNumber", 205: "notNegative", 208: "digitLoop", 218: "popLoop" };
+const ADDR = { 0x402000: "prompt", 0x402015: "result", 0x402025: "illegal", 0x402038: "minus", 0x402039: "newline",
+  0x40203a: "length", 0x402042: "num", 0x40204a: "digits", 0x402052: "dots", 0x40205a: "total",
+  0x402064: "buffer", 0x402164: "outBuf" };
+const REGS = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi"];
+const VARS = ["length", "num", "digits", "dots", "total"];
+const INSTR = DATA.instr;
+const INSTR_SET = new Set(INSTR);
+const CODE = DATA.code;
+
+/* ---------- helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function hex64(n) { return "0x" + (BigInt(n) & 0xFFFFFFFFFFFFFFFFn).toString(16).toUpperCase(); }
+function shownChar(c) { return c === "\n" ? "⏎" : c === " " ? "␣" : c; }
+function charName(n) { if (n === 10) return "newline"; if (n === 32) return "space"; if (n > 32 && n < 127) return "'" + String.fromCharCode(n) + "'"; return null; }
+function seqNext(line) { const i = INSTR.indexOf(line); return i >= 0 && i + 1 < INSTR.length ? INSTR[i + 1] : null; }
+function labelFor(line) {
+  for (let l = line - 1; l > 0; l--) {
+    if (LABEL_LINES[l]) return LABEL_LINES[l];
+    if (INSTR_SET.has(l)) return null;
+  }
+  return null;
+}
+function lineName(line) { const lb = labelFor(line); return lb ? `line ${line} (${lb})` : `line ${line}`; }
+
+function highlight(raw) {
+  let code = raw, comment = "";
+  // split off the comment (ignore ; inside quotes)
+  let q = null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (q) { if (ch === q) q = null; continue; }
+    if (ch === "'" || ch === '"') { q = ch; continue; }
+    if (ch === ";") { code = raw.slice(0, i); comment = raw.slice(i); break; }
+  }
+  let html = esc(code)
+    .replace(/(&quot;|")(.*?)("|&quot;)/g, '<span class="tok-s">"$2"</span>')
+    .replace(/'([^']*)'/g, "<span class=\"tok-s\">'$1'</span>");
+  html = html.replace(/^(\s*)([A-Za-z_]\w*:)/, '$1<span class="tok-l">$2</span>');
+  html = html.replace(/^((?:\s*<span class="tok-l">[^<]*<\/span>)?\s+)([a-z]+)\b/, (m, pre, word) => {
+    const dir = ["section", "global", "db", "dq", "resb"].includes(word);
+    return pre + `<span class="${dir ? "tok-d" : "tok-m"}">${word}</span>`;
+  });
+  if (comment) html += `<span class="tok-c">${esc(comment)}</span>`;
+  return html;
+}
+
+/* ---------- build the listing ---------- */
+const rows = {};
+(function buildListing() {
+  const host = $("sections");
+  for (const s of SECTIONS) {
+    const sec = document.createElement("section");
+    sec.className = "sec"; sec.id = s.id;
+    sec.innerHTML = `<div class="sec-head"><span class="range">LINES ${s.from}–${s.to}</span><h3>${s.title}</h3><p>${s.intro}</p></div>`;
+    const lines = document.createElement("div");
+    lines.className = "lines";
+    for (let n = s.from; n <= s.to; n++) {
+      const raw = CODE[n - 1] ?? "";
+      const row = document.createElement("div");
+      const trimmed = raw.trim();
+      if (!trimmed) row.className = "row blank";
+      else if (trimmed.startsWith(";")) row.className = "row cmt";
+      else row.className = "row code" + (INSTR_SET.has(n) ? " instr" : "");
+      row.dataset.line = n;
+      row.innerHTML = `<div class="gut"><span>${n}</span><span class="count"></span></div><div class="src">${highlight(raw)}</div>` +
+        (EXPL[n] ? `<div class="expl">${EXPL[n]}</div>` : "");
+      if (INSTR_SET.has(n)) {
+        row.title = "Click to jump to the next time this line runs";
+        row.addEventListener("click", () => jumpToLine(n));
+      }
+      rows[n] = row;
+      lines.appendChild(row);
+    }
+    if (s.collapsed) {
+      const d = document.createElement("details");
+      d.innerHTML = `<summary>Show the comment lines</summary>`;
+      d.appendChild(lines);
+      sec.appendChild(d);
+    } else sec.appendChild(lines);
+    host.appendChild(sec);
+  }
+})();
+
+$("toggle-expl").addEventListener("change", (e) => {
+  $("listing").classList.toggle("hide-expl", !e.target.checked);
+});
+
+/* ---------- trace player ---------- */
+let T = null, cur = 0, timer = null;
+const narrow = window.matchMedia("(max-width: 999px)");
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function unpack(row) {
+  const [line, next, rax, rbx, rcx, rdx, rsi, rdi, flags, length, num, digits, dots, total, si, oi, bi, exit] = row;
+  return { line, next, r: { rax, rbx, rcx, rdx, rsi, rdi }, zf: flags & 1, sf: (flags >> 1) & 1, cf: (flags >> 2) & 1,
+    v: { length, num, digits, dots, total }, stack: T.stacks[si], out: T.outs[oi], outBuf: T.outBufs[bi], exit: !!exit };
+}
+
+(function buildInputs() {
+  const host = $("inputs");
+  DATA.traces.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "in-" + i;
+    b.innerHTML = `<b>${esc(t.label)}</b><span>${esc(t.sub)} · ${t.steps.length - 1} instructions</span>`;
+    b.addEventListener("click", () => selectTrace(i));
+    host.appendChild(b);
+  });
+})();
+
+function selectTrace(i) {
+  stop();
+  T = DATA.traces[i];
+  DATA.traces.forEach((_, j) => $("in-" + j).setAttribute("aria-pressed", String(j === i)));
+  const counts = {};
+  for (const r of T.steps) if (r[0] != null) counts[r[0]] = (counts[r[0]] || 0) + 1;
+  for (const n in rows) {
+    const c = rows[n].querySelector(".count");
+    if (c) c.textContent = counts[n] ? "×" + counts[n] : "";
+  }
+  $("scrub").max = T.steps.length - 1;
+  go(0, false);
+}
+
+function describeOutcome(s) {
+  if (s.line == null) return "";
+  const src = (CODE[s.line - 1] || "").trim().split(/\s+/)[0];
+  const m = src.toLowerCase();
+  if (s.exit) return "The program ends here.";
+  const fall = seqNext(s.line);
+  if (m === "jmp") return `Jumps to ${lineName(s.next)}.`;
+  if (m === "call") return `Calls the function: jumps to ${lineName(s.next)}.`;
+  if (m === "ret") return `Returns to line ${s.next}.`;
+  if (m.startsWith("j")) {
+    return s.next === fall ? `Condition is false, so no jump: carries on to line ${s.next}.`
+                           : `Condition is true, so it jumps to ${lineName(s.next)}.`;
+  }
+  return "";
+}
+
+function regMeaning(name, val, line) {
+  if (ADDR[val]) return "address of " + ADDR[val];
+  const charLines = { rax: [71, 73, 74, 76, 77, 79, 80, 81, 82, 219, 220], rdx: [211, 212] };
+  if ((charLines[name] || []).includes(line)) return charName(val) || "";
+  return "";
+}
+
+function go(i, scroll = true) {
+  cur = Math.max(0, Math.min(i, T.steps.length - 1));
+  const s = unpack(T.steps[cur]);
+  const p = cur > 0 ? unpack(T.steps[cur - 1]) : s;
+  $("scrub").value = cur;
+  $("stepcount").textContent = `Step ${cur} of ${T.steps.length - 1}`;
+
+  // listing highlights
+  document.querySelectorAll(".row.cur, .row.next").forEach((r) => r.classList.remove("cur", "next"));
+  if (s.line != null && rows[s.line]) rows[s.line].classList.add("cur");
+  if (s.next != null && rows[s.next] && s.next !== s.line) rows[s.next].classList.add("next");
+  if (scroll && !narrow.matches && s.line != null && rows[s.line]) {
+    const r = rows[s.line].getBoundingClientRect();
+    if (r.top < 60 || r.bottom > window.innerHeight - 40) {
+      const det = rows[s.line].closest("details"); if (det) det.open = true;
+      rows[s.line].scrollIntoView({ block: "center", behavior: reduced.matches || timer ? "auto" : "smooth" });
+    }
+  }
+
+  // "just ran" box
+  const now = $("now");
+  if (s.line == null) {
+    now.innerHTML = `<div class="now-label">Ready</div><p class="now-expl">Nothing has run yet. The first instruction is <b>line ${s.next}</b>. Press <b>Step ▶</b>.</p>`;
+  } else {
+    const changes = [];
+    for (const k of REGS) if (s.r[k] !== p.r[k]) {
+      const mean = regMeaning(k, s.r[k], s.line);
+      changes.push(`${k.toUpperCase()}: ${p.r[k]} → ${s.r[k]}${mean ? " (" + esc(mean) + ")" : ""}`);
+    }
+    for (const k of VARS) if (s.v[k] !== p.v[k]) changes.push(`[${k}]: ${p.v[k]} → ${s.v[k]}`);
+    if (s.zf !== p.zf) changes.push(`ZF: ${p.zf} → ${s.zf}`);
+    if (s.sf !== p.sf) changes.push(`SF: ${p.sf} → ${s.sf}`);
+    if (s.stack.length > p.stack.length) changes.push("pushed onto the stack");
+    if (s.stack.length < p.stack.length) changes.push("popped off the stack");
+    if (s.out.length > p.out.length) changes.push(`printed: "${esc(s.out.slice(p.out.length).replace(/\n/g, "\\n"))}"`);
+    if (cur === T.readStep) changes.push(`Linux read ${s.r.rax} characters into buffer`);
+    const outcome = describeOutcome(s);
+    now.innerHTML = `<div class="now-label">Just ran · line ${s.line}</div>
+      <pre>${highlight("  " + (CODE[s.line - 1] || "").replace(/\s*;.*$/, "").trim())}</pre>
+      ${EXPL[s.line] ? `<p class="now-expl">${EXPL[s.line]}</p>` : ""}
+      ${outcome ? `<p class="outcome">${outcome}</p>` : ""}
+      ${changes.length ? `<ul>${changes.map((c) => `<li>${c}</li>`).join("")}</ul>` : `<p class="now-expl" style="color:var(--muted)">No register or memory value changed.</p>`}`;
+  }
+
+  // registers
+  $("regs").innerHTML = `<tr><th>reg</th><th>decimal</th><th>hex</th><th>meaning</th></tr>` + REGS.map((k) => {
+    const v = s.r[k], ch = cur > 0 && v !== p.r[k];
+    return `<tr class="${ch ? "chg" : ""}"><th>${k.toUpperCase()}</th><td>${v}</td><td class="hex">${hex64(v)}</td><td class="mean">${esc(regMeaning(k, v, s.line) || "")}</td></tr>`;
+  }).join("");
+  $("vars").innerHTML = VARS.map((k) => {
+    const v = s.v[k], ch = cur > 0 && v !== p.v[k];
+    return `<tr class="${ch ? "chg" : ""}"><th>${k}</th><td>${v}</td></tr>`;
+  }).join("");
+  $("flags").innerHTML = [["ZF", s.zf, "zero"], ["SF", s.sf, "sign / negative"], ["CF", s.cf, "carry"]]
+    .map(([n, v, d]) => `<span class="flag ${v ? "on" : ""}" title="${d}">${n} ${v}</span>`).join("");
+
+  // buffer
+  const readDone = T.readStep != null && cur >= T.readStep;
+  const inLoop = s.line != null && s.line >= 61 && s.line <= 130;
+  $("buffer").innerHTML = readDone
+    ? [...T.buffer].map((c, j) => `<span class="cell ${inLoop && j === s.r.rsi ? "at" : ""}"><b>${esc(shownChar(c))}</b><i>${j}</i></span>`).join("")
+    : `<span class="stack"><span class="empty">Empty until the read on line 58 runs.</span></span>`;
+  $("outbuf-panel").hidden = !s.outBuf && !(s.line >= 205 && s.line <= 228);
+  $("outbuf").innerHTML = s.outBuf ? [...s.outBuf].map((c, j) => `<span class="cell"><b>${esc(c)}</b><i>${j}</i></span>`).join("")
+    : `<span class="stack"><span class="empty">Nothing stored yet.</span></span>`;
+
+  // stack
+  $("stack").innerHTML = s.stack.length
+    ? s.stack.map((e, j) => {
+        const txt = e.ret != null ? `return address <span>→ back to line ${e.ret}</span>` : `${e.val}${e.val >= 48 && e.val <= 57 ? ` <span>= '${String.fromCharCode(e.val)}'</span>` : ""}`;
+        return `<div class="item ${j === 0 ? "top" : ""}">${txt}</div>`;
+      }).join("")
+    : `<div class="empty">Empty.</div>`;
+
+  // terminal
+  let out = esc(s.out);
+  if (readDone) {
+    const pr = "Enter an IP address: ";
+    const typed = esc(T.input.replace(/\n$/, "").replace(/ /g, "␣")) + "\n";
+    out = esc(pr) + `<span class="typed">${typed}</span>` + esc(s.out.slice(pr.length));
+  }
+  $("term").innerHTML = out + (s.exit ? "" : `<span class="cursor"></span>`);
+
+  // keep the active line visible inside the panel itself on phones
+}
+
+function jumpToLine(n) {
+  stop();
+  for (let k = 1; k <= T.steps.length; k++) {
+    const i = (cur + k) % T.steps.length;
+    if (T.steps[i][0] === n) { go(i); return; }
+  }
+  $("now").innerHTML = `<div class="now-label">Line ${n}</div><p class="now-expl">This line never runs for <b>${esc(T.label)}</b>. Try a different input.</p>`;
+}
+
+function stop() { if (timer) { clearInterval(timer); timer = null; $("b-play").textContent = "Play"; } }
+function play() {
+  if (timer) { stop(); return; }
+  if (cur >= T.steps.length - 1) go(0, false);
+  $("b-play").textContent = "Pause";
+  timer = setInterval(() => { if (cur >= T.steps.length - 1) stop(); else go(cur + 1); }, 420);
+}
+
+$("b-start").addEventListener("click", () => { stop(); go(0); });
+$("b-back").addEventListener("click", () => { stop(); go(cur - 1); });
+$("b-step").addEventListener("click", () => { stop(); go(cur + 1); });
+$("b-end").addEventListener("click", () => { stop(); go(T.steps.length - 1); });
+$("b-play").addEventListener("click", play);
+$("scrub").addEventListener("input", (e) => { stop(); go(+e.target.value); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea, select") && e.target.type !== "range") return;
+  if (e.key === "ArrowRight") { e.preventDefault(); stop(); go(cur + 1); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); stop(); go(cur - 1); }
+});
+
+selectTrace(0);
+</script>
+
+</body>
+</html>

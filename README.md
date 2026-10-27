@@ -1,4 +1,4 @@
-# x86-64 IP Address Checksum
+# **PROJECT 1** IP Address Checksum
 
 A Linux x86-64 assembly program (NASM) that reads an IPv4 address, checks that it's valid, and prints a checksum. It was a programming project for CSC 35500 (Computer Systems I) at Lindenwood University, Fall 2026.
 
